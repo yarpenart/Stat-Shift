@@ -5,6 +5,10 @@ import {
   applyPreset,
   checkExpiredEffects,
   createStatEffect,
+  handleActiveEffectCreated,
+  handleActiveEffectDeleted,
+  handleActiveEffectUpdated,
+  reconcileAllAquaVitaeSuspensions,
   removeRestEffects
 } from "./effects.mjs";
 import { registerSocket } from "./socket.mjs";
@@ -20,6 +24,9 @@ Hooks.once("ready", () => {
   registerSocket();
   renderLauncher();
   registerRuntimeHooks();
+  void initializeEffectLifecycle().catch(error => {
+    console.error(`${MODULE_ID} | Initial effect lifecycle check failed.`, error);
+  });
 
   game.statShift = {
     open: openStatShift,
@@ -91,4 +98,12 @@ function registerRuntimeHooks() {
   Hooks.on("deleteCombat", () => checkExpiredEffects());
   Hooks.on("simple-calendar-date-time-change", () => checkExpiredEffects());
   Hooks.on("dnd5e.restCompleted", (actor, result) => removeRestEffects(actor, result));
+  Hooks.on("createActiveEffect", handleActiveEffectCreated);
+  Hooks.on("updateActiveEffect", handleActiveEffectUpdated);
+  Hooks.on("deleteActiveEffect", handleActiveEffectDeleted);
+}
+
+async function initializeEffectLifecycle() {
+  await checkExpiredEffects();
+  await reconcileAllAquaVitaeSuspensions();
 }

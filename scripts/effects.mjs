@@ -1,12 +1,17 @@
 import {
   ABILITIES,
   ABILITY_LABELS,
+  AQUA_VITAE_ADDICTION_NAME,
   MODULE_ID,
   formIcon,
   localName,
   tr
 } from "./constants.mjs";
 import { recordDustOutcome } from "./stats.mjs";
+
+const AQUA_SUSPENSION_FLAG = "aquaVitaeSuspension";
+const AQUA_SYNC_OPTION = "statShiftAquaSync";
+const MANAGED_CREATE_OPTION = "statShiftManagedCreate";
 
 function numeric(value, fallback = 0) {
   const number = Number(value);
@@ -132,7 +137,9 @@ export async function createStatEffect(actor, {
     }
   };
   if (tint) data.tint = tint;
-  const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [data]);
+  const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [data], {
+    [MANAGED_CREATE_OPTION]: true
+  });
   return effect;
 }
 
@@ -299,6 +306,18 @@ export async function applyDustOutcome(actor, request, outcome, rollData = {}) {
     }
   });
 
+  try {
+    await suspendAquaVitaeAddiction(actor, effect.id);
+  } catch (error) {
+    console.error(`${MODULE_ID} | Could not suspend ${AQUA_VITAE_ADDICTION_NAME}.`, error);
+    await effect.delete({ [AQUA_SYNC_OPTION]: true });
+    await reconcileAquaVitaeSuspension(actor);
+    throw new Error(tr(
+      `Dust of Potential could not deactivate ${AQUA_VITAE_ADDICTION_NAME}. No Dust effect was applied.`,
+      `Dust of Potential nie mógł wyłączyć efektu ${AQUA_VITAE_ADDICTION_NAME}. Efekt Dust nie został nałożony.`
+    ));
+  }
+
   await recordDustOutcome(actor, {
     outcome,
     title: request.title,
@@ -325,6 +344,167 @@ export async function applyDustOutcome(actor, request, outcome, rollData = {}) {
     rollMode: request.rollMode
   });
   return effect;
+}
+
+function normalizedEffectName(effect) {
+  return String(effect?.name ?? "").trim().toLocaleLowerCase();
+}
+
+function isAquaVitaeAddiction(effect) {
+  return normalizedEffectName(effect) === AQUA_VITAE_ADDICTION_NAME.toLocaleLowerCase();
+}
+
+function isDustEffect(effect) {
+  return effect?.flags?.[MODULE_ID]?.kind === "dust";
+}
+
+function activeDustEffectIds(actor, excludedIds = []) {
+  const excluded = new Set(excludedIds);
+  return actor.effects
+    .filter(effect => isDustEffect(effect) && !effect.disabled && !excluded.has(effect.id))
+    .map(effect => effect.id);
+}
+
+function readAquaSuspension(actor) {
+  const saved = actor.getFlag(MODULE_ID, AQUA_SUSPENSION_FLAG);
+  const effectStates = {};
+  for (const [id, state] of Object.entries(saved?.effectStates ?? {})) {
+    if (!id) continue;
+    effectStates[id] = { wasDisabled: Boolean(state?.wasDisabled) };
+  }
+  return {
+    dustEffectIds: Array.isArray(saved?.dustEffectIds)
+      ? [...new Set(saved.dustEffectIds.filter(id => typeof id === "string" && id))]
+      : [],
+    effectStates
+  };
+}
+
+async function saveAquaSuspension(actor, state) {
+  await actor.setFlag(MODULE_ID, AQUA_SUSPENSION_FLAG, state);
+}
+
+async function clearAquaSuspension(actor) {
+  if (actor.getFlag(MODULE_ID, AQUA_SUSPENSION_FLAG) !== undefined) {
+    await actor.unsetFlag(MODULE_ID, AQUA_SUSPENSION_FLAG);
+  }
+}
+
+async function updateEffectDisabledState(actor, updates) {
+  if (!updates.length) return;
+  await actor.updateEmbeddedDocuments("ActiveEffect", updates, {
+    [AQUA_SYNC_OPTION]: true
+  });
+}
+
+export async function suspendAquaVitaeAddiction(actor, dustEffectId = null) {
+  if (!actor) return;
+  const state = readAquaSuspension(actor);
+  state.dustEffectIds = activeDustEffectIds(actor);
+  if (dustEffectId && !state.dustEffectIds.includes(dustEffectId)) {
+    const dust = actor.effects.get(dustEffectId);
+    if (isDustEffect(dust) && !dust.disabled) state.dustEffectIds.push(dustEffectId);
+  }
+  if (!state.dustEffectIds.length) return;
+
+  const addictions = actor.effects.filter(isAquaVitaeAddiction);
+  for (const effect of addictions) {
+    state.effectStates[effect.id] ??= { wasDisabled: Boolean(effect.disabled) };
+  }
+
+  await saveAquaSuspension(actor, state);
+  await updateEffectDisabledState(
+    actor,
+    addictions
+      .filter(effect => !effect.disabled)
+      .map(effect => ({ _id: effect.id, disabled: true }))
+  );
+}
+
+export async function restoreAquaVitaeAddiction(actor, excludedDustIds = []) {
+  if (!actor) return;
+  const state = readAquaSuspension(actor);
+  const remainingDustIds = activeDustEffectIds(actor, excludedDustIds);
+  if (remainingDustIds.length) {
+    state.dustEffectIds = remainingDustIds;
+    await saveAquaSuspension(actor, state);
+    return;
+  }
+
+  const updates = [];
+  for (const [effectId, saved] of Object.entries(state.effectStates)) {
+    const effect = actor.effects.get(effectId);
+    if (effect && !saved.wasDisabled && effect.disabled) {
+      updates.push({ _id: effect.id, disabled: false });
+    }
+  }
+  await updateEffectDisabledState(actor, updates);
+  await clearAquaSuspension(actor);
+}
+
+export async function reconcileAquaVitaeSuspension(actor) {
+  if (!actor) return;
+  if (activeDustEffectIds(actor).length) {
+    await suspendAquaVitaeAddiction(actor);
+  } else {
+    await restoreAquaVitaeAddiction(actor);
+  }
+}
+
+export async function reconcileAllAquaVitaeSuspensions() {
+  if (!game.user.isGM || !isPrimaryActiveGM()) return;
+  for (const actor of managedActors()) {
+    await reconcileAquaVitaeSuspension(actor);
+  }
+}
+
+export function handleActiveEffectCreated(effect, options, userId) {
+  const actor = effect?.parent;
+  if (!responsibleForEffectLifecycle(actor, userId) || options?.[MANAGED_CREATE_OPTION]) return;
+  if (!isDustEffect(effect) && !isAquaVitaeAddiction(effect)) return;
+  runEffectLifecycle(() => reconcileAquaVitaeSuspension(actor));
+}
+
+export function handleActiveEffectUpdated(effect, changed, options, userId) {
+  const actor = effect?.parent;
+  if (
+    !responsibleForEffectLifecycle(actor, userId)
+    || options?.[AQUA_SYNC_OPTION]
+    || !Object.hasOwn(changed ?? {}, "disabled")
+  ) return;
+
+  if (isDustEffect(effect)) {
+    runEffectLifecycle(() => effect.disabled
+      ? restoreAquaVitaeAddiction(actor, [effect.id])
+      : suspendAquaVitaeAddiction(actor, effect.id));
+    return;
+  }
+
+  if (isAquaVitaeAddiction(effect) && !effect.disabled && activeDustEffectIds(actor).length) {
+    runEffectLifecycle(() => suspendAquaVitaeAddiction(actor));
+  }
+}
+
+export function handleActiveEffectDeleted(effect, options, userId) {
+  const actor = effect?.parent;
+  if (
+    !responsibleForEffectLifecycle(actor, userId)
+    || options?.[AQUA_SYNC_OPTION]
+    || !isDustEffect(effect)
+  ) return;
+  runEffectLifecycle(() => restoreAquaVitaeAddiction(actor, [effect.id]));
+}
+
+function responsibleForEffectLifecycle(actor, userId) {
+  if (!actor?.isOwner) return false;
+  if (userId) return userId === game.user.id;
+  return game.user.isGM && isPrimaryActiveGM();
+}
+
+function runEffectLifecycle(callback) {
+  void Promise.resolve()
+    .then(callback)
+    .catch(error => console.error(`${MODULE_ID} | Aqua Vitae lifecycle failed.`, error));
 }
 
 function changesFromEffect(changes) {
@@ -397,7 +577,7 @@ export async function postEffectCard(actor, {
 export async function checkExpiredEffects() {
   if (!game.user.isGM || !isPrimaryActiveGM()) return;
   const calendarNow = currentCalendarTimestamp();
-  for (const actor of game.actors) {
+  for (const actor of managedActors()) {
     const expired = actor.effects.filter(effect => {
       const flags = effect.flags?.[MODULE_ID];
       if (!flags) return false;
@@ -406,7 +586,10 @@ export async function checkExpiredEffects() {
       if (Number.isFinite(Number(effect.duration?.turns)) && Number(effect.duration?.remaining) <= 0) return true;
       return false;
     });
-    if (expired.length) await actor.deleteEmbeddedDocuments("ActiveEffect", expired.map(effect => effect.id));
+    if (expired.length) {
+      await actor.deleteEmbeddedDocuments("ActiveEffect", expired.map(effect => effect.id));
+      await reconcileAquaVitaeSuspension(actor);
+    }
   }
 }
 
@@ -424,6 +607,15 @@ function isPrimaryActiveGM() {
     .filter(user => user.active && user.isGM)
     .sort((a, b) => a.id.localeCompare(b.id))[0];
   return first?.id === game.user.id;
+}
+
+function managedActors() {
+  const actors = new Map();
+  for (const actor of game.actors?.contents ?? []) actors.set(actor.uuid, actor);
+  for (const token of canvas?.tokens?.placeables ?? []) {
+    if (token.actor) actors.set(token.actor.uuid, token.actor);
+  }
+  return actors.values();
 }
 
 export function escapeHtml(value) {

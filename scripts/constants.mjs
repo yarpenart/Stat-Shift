@@ -1,5 +1,6 @@
 export const MODULE_ID = "stat-shift";
 export const SOCKET_NAME = `module.${MODULE_ID}`;
+export const AQUA_VITAE_ADDICTION_NAME = "Aqua Vitae Addiction";
 
 export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
 

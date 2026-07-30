@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1
+
+- Dust of Potential now temporarily disables an Active Effect named
+  `Aqua Vitae Addiction`, regardless of saving throw outcome.
+- The addiction effect returns to its previous active/inactive state when the
+  last Dust of Potential effect ends, is disabled, or is removed.
+- Overlapping Dust effects no longer reactivate the addiction too early.
+- Existing effects are reconciled after a world reload, and unlinked token
+  actors are included in expiration checks.
+
 ## 0.1.0
 
 - Added fixed Potion of Giant Strength and Strength Drain effects.

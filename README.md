@@ -64,6 +64,11 @@ created effect is named `S. Form Variant` or `F. Form Variant`.
 The GM can also skip the roll and directly apply either outcome. This is useful
 after correcting or rolling back calendar time.
 
+Whenever either Dust outcome is applied, an Active Effect named
+`Aqua Vitae Addiction` on the same actor is temporarily disabled. It is
+restored to its previous active/inactive state after the last active Dust
+effect ends or is removed. The name match is case-insensitive.
+
 ### GM data
 
 Per actor, the module records:
@@ -112,7 +117,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.0`.
+2. Create and push a semantic version tag, for example `v0.1.1`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
