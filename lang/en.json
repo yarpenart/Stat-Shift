@@ -1,0 +1,9 @@
+{
+  "STATSHIFT.Title": "Stat Shift",
+  "STATSHIFT.Settings.Language": "Interface language",
+  "STATSHIFT.Settings.LanguageHint": "Language used by Stat Shift windows. A reload is required.",
+  "STATSHIFT.Settings.ShowLauncher": "Show canvas launcher",
+  "STATSHIFT.Settings.ShowLauncherHint": "Show the floating Stat Shift button for GMs.",
+  "STATSHIFT.Settings.LockLauncher": "Lock launcher position",
+  "STATSHIFT.Settings.LockLauncherHint": "Prevent the floating button from being dragged."
+}

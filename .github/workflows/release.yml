@@ -1,0 +1,60 @@
+name: Release Foundry Module
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build release manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          version = tag.removeprefix("v")
+          path = "module.json"
+          with open(path, encoding="utf-8") as source:
+              manifest = json.load(source)
+          manifest["version"] = version
+          manifest["download"] = (
+              f"https://github.com/yarpenart/stat-shift/releases/download/"
+              f"{tag}/stat-shift.zip"
+          )
+          with open(path, "w", encoding="utf-8") as output:
+              json.dump(manifest, output, ensure_ascii=False, indent=2)
+              output.write("\n")
+          PY
+
+      - name: Build module archive
+        run: |
+          zip -r stat-shift.zip \
+            module.json \
+            scripts \
+            styles \
+            lang \
+            assets \
+            README.md \
+            CHANGELOG.md \
+            THIRD_PARTY_LICENSES.md \
+            LICENSE
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            stat-shift.zip \
+            module.json \
+            --title "Stat Shift ${GITHUB_REF_NAME}" \
+            --generate-notes

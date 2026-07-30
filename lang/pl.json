@@ -1,0 +1,9 @@
+{
+  "STATSHIFT.Title": "Stat Shift",
+  "STATSHIFT.Settings.Language": "Język interfejsu",
+  "STATSHIFT.Settings.LanguageHint": "Język okien Stat Shift. Wymagane jest przeładowanie.",
+  "STATSHIFT.Settings.ShowLauncher": "Pokaż przycisk na ekranie",
+  "STATSHIFT.Settings.ShowLauncherHint": "Pokazuje unoszący się przycisk Stat Shift dla GMa.",
+  "STATSHIFT.Settings.LockLauncher": "Zablokuj pozycję przycisku",
+  "STATSHIFT.Settings.LockLauncherHint": "Blokuje przeciąganie przycisku po ekranie."
+}
