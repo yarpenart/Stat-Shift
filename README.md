@@ -61,13 +61,24 @@ Available variants:
 Every success and failure modifier is editable before the request is sent. The
 created effect is named `S. Form Variant` or `F. Form Variant`.
 
+Alongside manual form and variant selection, the GM can randomize:
+
+- only the form;
+- only the variant;
+- both the form and variant.
+
+The random result is shown immediately and remains fully editable before the
+saving throw request is sent or the effect is applied directly.
+
 The GM can also skip the roll and directly apply either outcome. This is useful
 after correcting or rolling back calendar time.
 
 Whenever either Dust outcome is applied, an Active Effect named
 `Aqua Vitae Addiction` on the same actor is temporarily disabled. It is
-restored to its previous active/inactive state after the last active Dust
-effect ends or is removed. The name match is case-insensitive.
+found whether it is stored directly on the actor or originates from one of the
+actor's owned features/items. It is restored to its previous active/inactive
+state after the last active Dust effect ends or is removed. The name match is
+case-insensitive.
 
 ### GM data
 
@@ -117,7 +128,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.1`.
+2. Create and push a semantic version tag, for example `v0.1.3`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.3
+
+- Added three Dust of Potential randomization controls: random form, random
+  variant, and random form plus variant.
+- A random result immediately refreshes the effect names, animal icons, and
+  default success/failure modifiers.
+- Every randomized value remains editable by the GM before use.
+
+## 0.1.2
+
+- Fixed `Aqua Vitae Addiction` not being disabled when the effect originates
+  from an owned feature or item instead of being embedded directly on the
+  actor.
+- Dust now checks actor-owned, applied, and item-owned Active Effects.
+- The exact source effect and its previous disabled state are restored after
+  the final Dust effect ends.
+- Active Effect lifecycle hooks now correctly resolve item-owned effects back
+  to their actor.
+
 ## 0.1.1
 
 - Dust of Potential now temporarily disables an Active Effect named

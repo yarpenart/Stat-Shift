@@ -107,6 +107,18 @@ export function formIcon(formId, outcome) {
   return `modules/${MODULE_ID}/assets/icons/${formId}-${outcome}.webp`;
 }
 
+export function pickRandomDustProfile(formId = "cat", variantId = "jack", mode = "both", random = Math.random) {
+  const selection = { formId, variantId };
+  if (mode === "form" || mode === "both") selection.formId = randomKey(FORMS, random);
+  if (mode === "variant" || mode === "both") selection.variantId = randomKey(VARIANTS, random);
+  return selection;
+}
+
+function randomKey(collection, random) {
+  const keys = Object.keys(collection);
+  return keys[Math.floor(random() * keys.length)];
+}
+
 export function randomId() {
   return foundry.utils.randomID(16);
 }

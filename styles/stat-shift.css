@@ -296,6 +296,50 @@
   background: #182638;
 }
 
+.stat-shift-randomize {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid #4d526b;
+  border-radius: 7px;
+  background: linear-gradient(90deg, rgb(102 86 156 / 13%), transparent), #171b26;
+}
+
+.stat-shift-randomize > span {
+  color: var(--stat-shift-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stat-shift-randomize > span i,
+.stat-shift-randomize button i {
+  margin-right: 7px;
+}
+
+.stat-shift-randomize > span i {
+  color: #bca8ff;
+}
+
+.stat-shift-randomize > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat-shift-randomize button {
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid #68618a;
+  border-radius: 6px;
+  color: var(--stat-shift-ink);
+  background: #29243b;
+}
+
+.stat-shift-randomize button:hover {
+  border-color: #bca8ff;
+  background: #352e4d;
+}
+
 .stat-shift-note.warning {
   border-color: #6f4c4c;
   color: #efc1c1;
@@ -573,6 +617,7 @@
 
   .stat-shift-grid.three,
   .stat-shift-outcomes,
+  .stat-shift-randomize > div,
   .stat-shift-actor-picker,
   .stat-shift-manual {
     grid-template-columns: 1fr;

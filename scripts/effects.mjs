@@ -347,7 +347,11 @@ export async function applyDustOutcome(actor, request, outcome, rollData = {}) {
 }
 
 function normalizedEffectName(effect) {
-  return String(effect?.name ?? "").trim().toLocaleLowerCase();
+  return String(effect?.name ?? "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
 }
 
 function isAquaVitaeAddiction(effect) {
@@ -358,19 +362,73 @@ function isDustEffect(effect) {
   return effect?.flags?.[MODULE_ID]?.kind === "dust";
 }
 
+function collectionContents(collection) {
+  if (!collection) return [];
+  if (Array.isArray(collection)) return collection;
+  if (Array.isArray(collection.contents)) return collection.contents;
+  if (typeof collection.values === "function") return Array.from(collection.values());
+  if (typeof collection[Symbol.iterator] === "function") return Array.from(collection);
+  return [];
+}
+
+function effectReference(effect) {
+  return effect?.uuid
+    ?? (effect?.parent?.uuid && effect?.id ? `${effect.parent.uuid}.ActiveEffect.${effect.id}` : null)
+    ?? effect?.id
+    ?? null;
+}
+
+function actorEffects(actor) {
+  const effects = new Map();
+  const add = effect => {
+    if (!effect) return;
+    const reference = effectReference(effect);
+    if (reference) effects.set(reference, effect);
+  };
+
+  for (const effect of collectionContents(actor?.effects)) add(effect);
+  for (const effect of collectionContents(actor?.appliedEffects)) add(effect);
+  for (const item of collectionContents(actor?.items)) {
+    for (const effect of collectionContents(item?.effects)) add(effect);
+  }
+  return [...effects.values()];
+}
+
+function aquaVitaeAddictions(actor) {
+  return actorEffects(actor).filter(isAquaVitaeAddiction);
+}
+
 function activeDustEffectIds(actor, excludedIds = []) {
   const excluded = new Set(excludedIds);
-  return actor.effects
+  return collectionContents(actor?.effects)
     .filter(effect => isDustEffect(effect) && !effect.disabled && !excluded.has(effect.id))
     .map(effect => effect.id);
 }
 
 function readAquaSuspension(actor) {
   const saved = actor.getFlag(MODULE_ID, AQUA_SUSPENSION_FLAG);
-  const effectStates = {};
-  for (const [id, state] of Object.entries(saved?.effectStates ?? {})) {
-    if (!id) continue;
-    effectStates[id] = { wasDisabled: Boolean(state?.wasDisabled) };
+  const effectStates = [];
+  if (Array.isArray(saved?.effectStates)) {
+    for (const state of saved.effectStates) {
+      const reference = typeof state?.reference === "string" ? state.reference : null;
+      const id = typeof state?.id === "string" ? state.id : null;
+      if (!reference && !id) continue;
+      effectStates.push({
+        reference,
+        id,
+        wasDisabled: Boolean(state?.wasDisabled)
+      });
+    }
+  } else {
+    // v0.1.1 stored actor-owned effects in an object keyed by effect ID.
+    for (const [id, state] of Object.entries(saved?.effectStates ?? {})) {
+      if (!id) continue;
+      effectStates.push({
+        reference: null,
+        id,
+        wasDisabled: Boolean(state?.wasDisabled)
+      });
+    }
   }
   return {
     dustEffectIds: Array.isArray(saved?.dustEffectIds)
@@ -390,11 +448,11 @@ async function clearAquaSuspension(actor) {
   }
 }
 
-async function updateEffectDisabledState(actor, updates) {
-  if (!updates.length) return;
-  await actor.updateEmbeddedDocuments("ActiveEffect", updates, {
-    [AQUA_SYNC_OPTION]: true
-  });
+async function updateEffectDisabledState(effects, disabled) {
+  for (const effect of effects) {
+    if (Boolean(effect.disabled) === disabled) continue;
+    await effect.update({ disabled }, { [AQUA_SYNC_OPTION]: true });
+  }
 }
 
 export async function suspendAquaVitaeAddiction(actor, dustEffectId = null) {
@@ -407,18 +465,26 @@ export async function suspendAquaVitaeAddiction(actor, dustEffectId = null) {
   }
   if (!state.dustEffectIds.length) return;
 
-  const addictions = actor.effects.filter(isAquaVitaeAddiction);
+  const addictions = aquaVitaeAddictions(actor);
   for (const effect of addictions) {
-    state.effectStates[effect.id] ??= { wasDisabled: Boolean(effect.disabled) };
+    const reference = effectReference(effect);
+    const saved = state.effectStates.find(entry =>
+      (reference && entry.reference === reference)
+      || (!entry.reference && entry.id === effect.id)
+    );
+    if (!saved) {
+      state.effectStates.push({
+        reference,
+        id: effect.id ?? null,
+        wasDisabled: Boolean(effect.disabled)
+      });
+    } else if (!saved.reference && reference) {
+      saved.reference = reference;
+    }
   }
 
   await saveAquaSuspension(actor, state);
-  await updateEffectDisabledState(
-    actor,
-    addictions
-      .filter(effect => !effect.disabled)
-      .map(effect => ({ _id: effect.id, disabled: true }))
-  );
+  await updateEffectDisabledState(addictions, true);
 }
 
 export async function restoreAquaVitaeAddiction(actor, excludedDustIds = []) {
@@ -431,14 +497,22 @@ export async function restoreAquaVitaeAddiction(actor, excludedDustIds = []) {
     return;
   }
 
+  const availableEffects = actorEffects(actor);
+  const effectsByReference = new Map(
+    availableEffects.map(effect => [effectReference(effect), effect])
+  );
+  const effectsById = new Map(
+    availableEffects.map(effect => [effect.id, effect])
+  );
   const updates = [];
-  for (const [effectId, saved] of Object.entries(state.effectStates)) {
-    const effect = actor.effects.get(effectId);
+  for (const saved of state.effectStates) {
+    const effect = (saved.reference && effectsByReference.get(saved.reference))
+      || (saved.id && effectsById.get(saved.id));
     if (effect && !saved.wasDisabled && effect.disabled) {
-      updates.push({ _id: effect.id, disabled: false });
+      updates.push(effect);
     }
   }
-  await updateEffectDisabledState(actor, updates);
+  await updateEffectDisabledState(updates, false);
   await clearAquaSuspension(actor);
 }
 
@@ -459,14 +533,14 @@ export async function reconcileAllAquaVitaeSuspensions() {
 }
 
 export function handleActiveEffectCreated(effect, options, userId) {
-  const actor = effect?.parent;
+  const actor = effectActor(effect);
   if (!responsibleForEffectLifecycle(actor, userId) || options?.[MANAGED_CREATE_OPTION]) return;
   if (!isDustEffect(effect) && !isAquaVitaeAddiction(effect)) return;
   runEffectLifecycle(() => reconcileAquaVitaeSuspension(actor));
 }
 
 export function handleActiveEffectUpdated(effect, changed, options, userId) {
-  const actor = effect?.parent;
+  const actor = effectActor(effect);
   if (
     !responsibleForEffectLifecycle(actor, userId)
     || options?.[AQUA_SYNC_OPTION]
@@ -486,13 +560,20 @@ export function handleActiveEffectUpdated(effect, changed, options, userId) {
 }
 
 export function handleActiveEffectDeleted(effect, options, userId) {
-  const actor = effect?.parent;
+  const actor = effectActor(effect);
   if (
     !responsibleForEffectLifecycle(actor, userId)
     || options?.[AQUA_SYNC_OPTION]
     || !isDustEffect(effect)
   ) return;
   runEffectLifecycle(() => restoreAquaVitaeAddiction(actor, [effect.id]));
+}
+
+function effectActor(effect) {
+  const parent = effect?.parent;
+  if (parent?.documentName === "Actor") return parent;
+  if (parent?.documentName === "Item") return parent.actor ?? parent.parent ?? null;
+  return null;
 }
 
 function responsibleForEffectLifecycle(actor, userId) {

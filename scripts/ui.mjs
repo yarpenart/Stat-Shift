@@ -7,6 +7,7 @@ import {
   VARIANTS,
   formIcon,
   localName,
+  pickRandomDustProfile,
   profileModifiers,
   randomId,
   tr
@@ -250,6 +251,20 @@ export class StatShiftApp extends Application {
           <label><span>${tr("Form name in effect", "Nazwa formy w efekcie")}</span><input type="text" name="formName" value="${localName(FORMS.cat)}"></label>
           <label><span>${tr("Variant name in effect", "Nazwa wariantu w efekcie")}</span><input type="text" name="variantName" value="${localName(VARIANTS.jack)}"></label>
         </div>
+        <div class="stat-shift-randomize">
+          <span><i class="fa-solid fa-shuffle"></i>${tr("Random selection", "Losowy wybór")}</span>
+          <div>
+            <button type="button" data-dust-randomize="form">
+              <i class="fa-solid fa-paw"></i>${tr("Random Form", "Losuj formę")}
+            </button>
+            <button type="button" data-dust-randomize="variant">
+              <i class="fa-solid fa-layer-group"></i>${tr("Random Variant", "Losuj wariant")}
+            </button>
+            <button type="button" data-dust-randomize="both">
+              <i class="fa-solid fa-dice"></i>${tr("Random Form and Variant", "Losuj formę i wariant")}
+            </button>
+          </div>
+        </div>
         <div class="stat-shift-outcomes">
           <section class="success">
             <h3><i class="fa-solid fa-circle-check"></i>${tr("Success profile", "Profil sukcesu")}</h3>
@@ -345,6 +360,12 @@ export class StatShiftApp extends Application {
       );
     });
     html.find("[data-dust-profile]").on("change", event => updateDustProfile(event.currentTarget.closest("form")));
+    html.find("[data-dust-randomize]").on("click", event => {
+      randomizeDustProfile(
+        event.currentTarget.closest("form"),
+        event.currentTarget.dataset.dustRandomize
+      );
+    });
     html.find("[data-role='data-actor']").on("change", event => {
       this.statsActorId = event.currentTarget.value;
       this.render(false);
@@ -638,6 +659,17 @@ function updateDustProfile(form) {
     form.elements[`success.${ability}`].value = success[ability];
     form.elements[`failure.${ability}`].value = failure[ability];
   }
+}
+
+function randomizeDustProfile(form, mode) {
+  const selection = pickRandomDustProfile(
+    form.elements.formId.value,
+    form.elements.variantId.value,
+    mode
+  );
+  form.elements.formId.value = selection.formId;
+  form.elements.variantId.value = selection.variantId;
+  updateDustProfile(form);
 }
 
 function historyRow(entry) {
