@@ -52,9 +52,8 @@ async function showSavePrompt(request) {
     return;
   }
   const ability = CONFIG.DND5E.abilities?.[request.saveAbility]?.label ?? request.saveAbility?.toUpperCase();
-  const formId = `stat-shift-save-${request.id}`;
   const content = `
-    <form id="${formId}" class="stat-shift-save-prompt">
+    <div class="stat-shift-save-prompt">
       <div class="stat-shift-save-prompt__hero">
         <img src="${escapeHtml(actor.img)}" alt="">
         <div>
@@ -78,9 +77,9 @@ async function showSavePrompt(request) {
         "The selected chat visibility was set by the GM.",
         "Widoczność rzutu na czacie została ustawiona przez GMa."
       )}</p>
-    </form>`;
+    </div>`;
 
-  new foundry.applications.api.Dialog({
+  const selection = await foundry.applications.api.DialogV2.wait({
     window: { title: request.title },
     position: { width: 430 },
     content,
@@ -90,22 +89,29 @@ async function showSavePrompt(request) {
         icon: "fa-solid fa-dice-d20",
         label: tr("Roll Saving Throw", "Rzuć rzut obronny"),
         default: true,
-        callback: async () => performSave(actor, request, formId)
+        callback: (_event, button) => ({
+          action: "roll",
+          bonus: Number(button.form?.elements?.bonus?.value) || 0,
+          advantageMode: button.form?.elements?.advantageMode?.value ?? "normal"
+        })
       },
       {
         action: "cancel",
         icon: "fa-solid fa-xmark",
         label: tr("Cancel", "Anuluj"),
-        callback: () => sendCancellation(actor, request)
+        callback: () => ({ action: "cancel" })
       }
-    ]
-  }).render({ force: true });
+    ],
+    rejectClose: false
+  });
+
+  if (selection?.action === "roll") await performSave(actor, request, selection);
+  else sendCancellation(actor, request);
 }
 
-async function performSave(actor, request, formId) {
-  const form = document.getElementById(formId);
-  const bonus = Number(form?.elements?.bonus?.value) || 0;
-  const advantageMode = form?.elements?.advantageMode?.value ?? "normal";
+async function performSave(actor, request, selection = {}) {
+  const bonus = Number(selection.bonus) || 0;
+  const advantageMode = selection.advantageMode ?? "normal";
   const rolls = await actor.rollSavingThrow({
     ability: request.saveAbility,
     target: Number(request.dc),
