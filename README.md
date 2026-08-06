@@ -5,7 +5,7 @@ changes caused by potions, creature abilities, substances, and custom effects.
 
 ## Compatibility
 
-- Foundry VTT 13, verified on build 351
+- Foundry VTT 14, verified on build 365
 - dnd5e 5.3.3
 - Dice So Nice (recommended)
 - Simple Calendar Reborn (recommended)
@@ -128,7 +128,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.3`.
+2. Create and push a semantic version tag, for example `v0.1.5`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 

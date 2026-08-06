@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Migrated the module manifest to Foundry VTT 14 Build 365.
+- Migrated the saving-throw prompt to the V14 `DialogV2` API.
+- Updated the Simple Calendar Reborn recommendation for its V14-compatible 2.6.x release line.
+
 ## 0.1.3
 
 - Added three Dust of Potential randomization controls: random form, random
