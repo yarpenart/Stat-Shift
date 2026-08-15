@@ -568,6 +568,36 @@
   font-size: 12px;
 }
 
+.stat-shift-save-request {
+  display: grid;
+  gap: 8px;
+  padding: 4px;
+}
+
+.stat-shift-save-request h3,
+.stat-shift-save-request p {
+  margin: 0;
+}
+
+.stat-shift-save-request h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #7a5420;
+}
+
+.stat-shift-save-request button {
+  width: 100%;
+  border: 1px solid #8b6938;
+  background: linear-gradient(#d3a457, #a9782f);
+  color: #1f160b;
+  font-weight: 700;
+}
+
+.stat-shift-save-request button i {
+  margin-right: 6px;
+}
+
 .stat-shift-card {
   overflow: hidden;
   border: 1px solid #836334;

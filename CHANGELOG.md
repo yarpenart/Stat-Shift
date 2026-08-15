@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.7
+
+- Replaced the unconfirmed GM-to-player saving-throw socket notification with
+  a reliable private ChatMessage transport.
+- Saving-throw requests now open automatically for the owning player and also
+  include a private chat button that can reopen the prompt if necessary.
+- Saving-throw results and cancellations return to the requesting GM through
+  the same document-based transport.
+- Fixed automatic and player-entered saving-throw bonuses for dnd5e 5.3.3 by
+  passing them through the current `rolls[].parts` roll configuration.
+- The GM only sees a delivery notification after Foundry creates the private
+  request message successfully.
+
 ## 0.1.6
 
 - Added a public `game.statShift.openHomebrewSave(...)` integration for other
