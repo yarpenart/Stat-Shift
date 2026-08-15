@@ -31,6 +31,20 @@ export class StatShiftApp extends Application {
     this.activeTab = "presets";
     this.fixedPreset = "potion";
     this.statsActorId = null;
+    this.integrationSave = null;
+  }
+
+  configureHomebrewSave(options = {}) {
+    this.activeTab = "save";
+    this.integrationSave = {
+      actorUuid: String(options.actorUuid ?? ""),
+      sourceLabel: String(options.sourceLabel ?? "Counterspell PLUS — Identify"),
+      defaults: options.defaults && typeof options.defaults === "object" ? options.defaults : {}
+    };
+  }
+
+  clearIntegrationSave() {
+    this.integrationSave = null;
   }
 
   static get defaultOptions() {
@@ -179,37 +193,60 @@ export class StatShiftApp extends Application {
   }
 
   renderSave() {
+    const integration = this.integrationSave;
+    const defaults = integration?.defaults ?? {};
+    const actorId = integration?.actorUuid || defaultActorId();
+    const title = String(defaults.title ?? tr("Resist the Effect", "Oprzyj się efektowi"));
+    const effectName = String(defaults.effectName ?? tr("Homebrew Effect", "Efekt Homebrew"));
+    const description = String(defaults.description ?? "");
+    const saveAbility = ABILITIES.includes(defaults.saveAbility) ? defaults.saveAbility : "con";
+    const dc = numberValue(defaults.dc, 15);
+    const rollBonus = numberValue(defaults.rollBonus, 0);
+    const mode = ["add", "upgrade", "override", "downgrade"].includes(defaults.mode) ? defaults.mode : "add";
+    const rollMode = ["publicroll", "gmroll", "blindroll", "selfroll"].includes(defaults.rollMode) ? defaults.rollMode : "publicroll";
+    const durationValue = numberValue(defaults.durationValue, 1);
+    const durationUnit = ["turns", "minutes", "hours", "days", "permanent"].includes(defaults.durationUnit) ? defaults.durationUnit : "hours";
+    const successModifiers = defaults.successModifiers ?? {};
+    const failureModifiers = defaults.failureModifiers ?? { con: -2 };
+    const applySuccess = Boolean(defaults.applySuccess);
+    const applyFailure = defaults.applyFailure === undefined ? true : Boolean(defaults.applyFailure);
+    const successIcon = String(defaults.successIcon ?? "icons/magic/defensive/shield-barrier-glowing-triangle-green.webp");
+    const failureIcon = String(defaults.failureIcon ?? "icons/magic/control/debuff-energy-hold-red.webp");
     return `
       <form class="stat-shift-form" data-form="save">
         ${sectionTitle(tr("Homebrew saving throw", "Homebrew — rzut obronny"), tr(
           "Success and failure can each apply changes, or do nothing.",
           "Sukces i porażka mogą niezależnie nakładać zmiany albo nie robić nic."
         ))}
-        ${actorPicker("actorId", "save-actor", defaultActorId())}
+        ${actorPicker("actorId", "save-actor", actorId, null, null, {
+          locked: Boolean(integration?.actorUuid),
+          sourceLabel: integration?.sourceLabel
+        })}
         <div class="stat-shift-grid three">
-          <label><span>${tr("Chat title", "Tytuł na czacie")}</span><input type="text" name="title" value="${tr("Resist the Effect", "Oprzyj się efektowi")}"></label>
-          ${abilityField("saveAbility", "con")}
-          <label><span>DC</span><input type="number" name="dc" value="15" min="1"></label>
+          <label><span>${tr("Chat title", "Tytuł na czacie")}</span><input type="text" name="title" value="${escapeHtml(title)}"></label>
+          ${abilityField("saveAbility", saveAbility)}
+          <label><span>DC</span><input type="number" name="dc" value="${dc}" min="1"></label>
         </div>
+        <label><span>${tr("Automatic roll bonus", "Automatyczny bonus do rzutu")}</span><input type="number" name="rollBonus" value="${rollBonus}" step="1"></label>
         <div class="stat-shift-grid two">
-          <label><span>${tr("Effect base name", "Bazowa nazwa efektu")}</span><input type="text" name="effectName" value="${tr("Homebrew Effect", "Efekt Homebrew")}"></label>
-          ${modeField()}
+          <label><span>${tr("Effect base name", "Bazowa nazwa efektu")}</span><input type="text" name="effectName" value="${escapeHtml(effectName)}"></label>
+          ${modeField(mode)}
         </div>
-        ${rollModeField()}
-        ${durationFields(1, "hours")}
+        ${rollModeField(rollMode)}
+        ${durationFields(durationValue, durationUnit)}
         <div class="stat-shift-outcomes">
           <section class="success">
-            <label class="stat-shift-toggle"><input type="checkbox" name="applySuccess"><span>${tr("Apply changes on success", "Nałóż zmiany po sukcesie")}</span></label>
-            <label><span>${tr("Success icon", "Ikona sukcesu")}</span><input type="text" name="successIcon" value="icons/magic/defensive/shield-barrier-glowing-triangle-green.webp"></label>
-            ${modifiersEditor("success", {})}
+            <label class="stat-shift-toggle"><input type="checkbox" name="applySuccess"${applySuccess ? " checked" : ""}><span>${tr("Apply changes on success", "Nałóż zmiany po sukcesie")}</span></label>
+            <label><span>${tr("Success icon", "Ikona sukcesu")}</span><input type="text" name="successIcon" value="${escapeHtml(successIcon)}"></label>
+            ${modifiersEditor("success", successModifiers)}
           </section>
           <section class="failure">
-            <label class="stat-shift-toggle"><input type="checkbox" name="applyFailure" checked><span>${tr("Apply changes on failure", "Nałóż zmiany po porażce")}</span></label>
-            <label><span>${tr("Failure icon", "Ikona porażki")}</span><input type="text" name="failureIcon" value="icons/magic/control/debuff-energy-hold-red.webp"></label>
-            ${modifiersEditor("failure", { con: -2 })}
+            <label class="stat-shift-toggle"><input type="checkbox" name="applyFailure"${applyFailure ? " checked" : ""}><span>${tr("Apply changes on failure", "Nałóż zmiany po porażce")}</span></label>
+            <label><span>${tr("Failure icon", "Ikona porażki")}</span><input type="text" name="failureIcon" value="${escapeHtml(failureIcon)}"></label>
+            ${modifiersEditor("failure", failureModifiers)}
           </section>
         </div>
-        <label><span>${tr("Description", "Opis")}</span><textarea name="description" rows="2"></textarea></label>
+        <label><span>${tr("Description", "Opis")}</span><textarea name="description" rows="2">${escapeHtml(description)}</textarea></label>
         <div class="stat-shift-actions">
           <button type="button" data-action="request-save" class="stat-shift-primary">
             <i class="fa-solid fa-shield-halved"></i>${tr("Request Saving Throw", "Poproś o rzut obronny")}
@@ -433,6 +470,7 @@ export class StatShiftApp extends Application {
       effectName: data.effectName,
       saveAbility: data.saveAbility,
       dc: numberValue(data.dc, 15),
+      rollBonus: numberValue(data.rollBonus, 0),
       rollMode: data.rollMode,
       mode: data.mode,
       durationValue: numberValue(data.durationValue, 1),
@@ -537,7 +575,20 @@ function actorEntries(excludedId = null) {
   return result.sort((a, b) => Number(b.token) - Number(a.token) || a.label.localeCompare(b.label));
 }
 
-function actorPicker(name, id, selected = "", role = null, excludedId = null) {
+function actorPicker(name, id, selected = "", role = null, excludedId = null, options = {}) {
+  if (options.locked) {
+    const actor = resolveActor(selected);
+    const actorName = actor?.name ?? tr("Missing actor", "Brak aktora");
+    return `
+      <div class="stat-shift-actor-picker locked">
+        <input type="hidden" name="${name}" value="${escapeHtml(selected)}">
+        <label><span>${tr("Locked target", "Zablokowany cel")}</span><input type="text" value="${escapeHtml(actorName)}" disabled></label>
+        <div class="stat-shift-locked-source">
+          <i class="fa-solid fa-lock"></i>
+          <span>${escapeHtml(options.sourceLabel ?? tr("Opened by another module", "Otwarte przez inny moduł"))}</span>
+        </div>
+      </div>`;
+  }
   const entries = actorEntries(excludedId);
   return `
     <div class="stat-shift-actor-picker">
@@ -588,12 +639,12 @@ function abilityField(name, selected) {
   </select></label>`;
 }
 
-function modeField() {
+function modeField(selected = "add") {
   return `<label><span>${tr("Change mode", "Tryb zmiany")}</span><select name="mode">
-    <option value="add">${tr("Add / subtract", "Dodaj / odejmij")}</option>
-    <option value="upgrade">${tr("Minimum score (Upgrade)", "Minimalna wartość (Upgrade)")}</option>
-    <option value="override">${tr("Exact score (Override)", "Dokładna wartość (Override)")}</option>
-    <option value="downgrade">${tr("Maximum score (Downgrade)", "Maksymalna wartość (Downgrade)")}</option>
+    <option value="add"${selected === "add" ? " selected" : ""}>${tr("Add / subtract", "Dodaj / odejmij")}</option>
+    <option value="upgrade"${selected === "upgrade" ? " selected" : ""}>${tr("Minimum score (Upgrade)", "Minimalna wartość (Upgrade)")}</option>
+    <option value="override"${selected === "override" ? " selected" : ""}>${tr("Exact score (Override)", "Dokładna wartość (Override)")}</option>
+    <option value="downgrade"${selected === "downgrade" ? " selected" : ""}>${tr("Maximum score (Downgrade)", "Maksymalna wartość (Downgrade)")}</option>
   </select></label>`;
 }
 
@@ -621,7 +672,7 @@ function durationFields(value, selectedUnit) {
   </div>`;
 }
 
-function rollModeField() {
+function rollModeField(selected = "publicroll") {
   const modes = [
     ["publicroll", tr("Public Roll", "Rzut publiczny")],
     ["gmroll", tr("Private GM Roll", "Prywatny rzut GMa")],
@@ -629,7 +680,7 @@ function rollModeField() {
     ["selfroll", tr("Self Roll", "Rzut dla siebie")]
   ];
   return `<label><span>${tr("Chat roll mode", "Tryb rzutu na czacie")}</span><select name="rollMode">
-    ${modes.map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}
+    ${modes.map(([id, label]) => `<option value="${id}"${id === selected ? " selected" : ""}>${label}</option>`).join("")}
   </select></label>`;
 }
 
@@ -698,7 +749,24 @@ export function openStatShift() {
     return;
   }
   appInstance ??= new StatShiftApp();
+  appInstance.clearIntegrationSave();
   appInstance.render(true);
+}
+
+export function openHomebrewSave(options = {}) {
+  if (!game.user.isGM) {
+    ui.notifications.warn(tr("Only a GM can open Stat Shift.", "Tylko GM może otworzyć Stat Shift."));
+    return false;
+  }
+  const actor = resolveActor(String(options.actorUuid ?? ""));
+  if (!actor) {
+    ui.notifications.error(tr("The locked target actor was not found.", "Nie znaleziono zablokowanego aktora docelowego."));
+    return false;
+  }
+  appInstance ??= new StatShiftApp();
+  appInstance.configureHomebrewSave({ ...options, actorUuid: actor.uuid });
+  appInstance.render(true);
+  return true;
 }
 
 export function renderLauncher() {
