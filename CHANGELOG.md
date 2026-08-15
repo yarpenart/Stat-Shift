@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.6
+
+- Added a public `game.statShift.openHomebrewSave(...)` integration for other
+  modules.
+- The integration can open the Homebrew Save tab with a preselected, locked
+  target actor and editable default values.
+- Added an editable automatic saving-throw bonus, used by Identify to add its
+  cast spell level to the identifying caster's roll.
+- Added Counterspell PLUS Identify integration documentation.
+
 ## 0.1.5
 
 - Migrated the module manifest to Foundry VTT 14 Build 365.

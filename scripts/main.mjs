@@ -13,7 +13,7 @@ import {
 } from "./effects.mjs";
 import { registerSocket } from "./socket.mjs";
 import { getDustStats, setDustStats, transferDustStats } from "./stats.mjs";
-import { openStatShift, renderLauncher } from "./ui.mjs";
+import { openHomebrewSave, openStatShift, renderLauncher } from "./ui.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -30,6 +30,7 @@ Hooks.once("ready", () => {
 
   game.statShift = {
     open: openStatShift,
+    openHomebrewSave,
     applyPreset,
     applyHomebrew,
     applyDustOutcome,

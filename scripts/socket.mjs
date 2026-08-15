@@ -52,6 +52,7 @@ async function showSavePrompt(request) {
     return;
   }
   const ability = CONFIG.DND5E.abilities?.[request.saveAbility]?.label ?? request.saveAbility?.toUpperCase();
+  const automaticBonus = Number(request.rollBonus) || 0;
   const content = `
     <div class="stat-shift-save-prompt">
       <div class="stat-shift-save-prompt__hero">
@@ -65,6 +66,7 @@ async function showSavePrompt(request) {
         <span>${tr("Additional modifier", "Dodatkowy modyfikator")}</span>
         <input type="number" name="bonus" value="0" step="1">
       </label>
+      ${automaticBonus ? `<p><strong>${tr("Automatic bonus", "Automatyczny bonus")}: ${automaticBonus >= 0 ? "+" : ""}${escapeHtml(automaticBonus)}</strong></p>` : ""}
       <label>
         <span>${tr("Roll mode", "Tryb rzutu")}</span>
         <select name="advantageMode">
@@ -111,11 +113,12 @@ async function showSavePrompt(request) {
 
 async function performSave(actor, request, selection = {}) {
   const bonus = Number(selection.bonus) || 0;
+  const automaticBonus = Number(request.rollBonus) || 0;
   const advantageMode = selection.advantageMode ?? "normal";
   const rolls = await actor.rollSavingThrow({
     ability: request.saveAbility,
     target: Number(request.dc),
-    parts: bonus ? [String(bonus)] : [],
+    parts: [automaticBonus, bonus].filter(value => value !== 0).map(String),
     advantage: advantageMode === "advantage",
     disadvantage: advantageMode === "disadvantage"
   }, {
@@ -143,6 +146,7 @@ async function performSave(actor, request, selection = {}) {
     total: Number(roll.total),
     success: Number(roll.total) >= Number(request.dc),
     bonus,
+    automaticBonus,
     advantageMode,
     messageId: roll.parent?.id ?? null
   };
