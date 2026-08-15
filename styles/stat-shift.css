@@ -193,6 +193,23 @@
   background: rgb(255 255 255 / 3%);
 }
 
+.stat-shift-actor-picker.locked {
+  align-items: end;
+}
+
+.stat-shift-locked-source {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  color: var(--stat-shift-muted);
+}
+
+.stat-shift-locked-source i {
+  color: var(--stat-shift-accent);
+}
+
 .stat-shift-segmented {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
