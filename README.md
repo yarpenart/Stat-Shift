@@ -107,6 +107,15 @@ units. Stat Shift also listens for Simple Calendar date changes and removes
 expired module effects even when calendar time is not advanced in one
 continuous step.
 
+### Counterspell PLUS — Identify
+
+Counterspell PLUS can open the Stat Shift **Homebrew Save** tab for an item
+identification risk. The identifying actor is preselected and locked as the
+target, while the GM may still edit every saving throw, outcome, modifier,
+duration, icon, description, and roll-mode field before sending the request.
+The Identify spell level is prefilled as an automatic bonus to the saving
+throw and remains visible and editable in the GM form.
+
 ## GM launcher
 
 The floating Stat Shift button is visible only to GMs. Its position can be
@@ -128,7 +137,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.5`.
+2. Create and push a semantic version tag, for example `v0.1.6`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
