@@ -37,6 +37,11 @@ The GM can edit:
 - Either outcome may apply an effect or do nothing.
 - The player receives a saving throw window with an additional modifier and
   Normal / Advantage / Disadvantage choices.
+- Requests are delivered as private Foundry chat documents. The window opens
+  automatically, and the private chat card provides a fallback button if the
+  window does not appear or must be reopened.
+- The GM receives a delivery notification only after the private request has
+  actually been created for the owning player.
 - The roll uses the native dnd5e 5.3.3 saving throw workflow.
 
 ### Dust of Potential
@@ -137,7 +142,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.6`.
+2. Create and push a semantic version tag, for example `v0.1.7`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
