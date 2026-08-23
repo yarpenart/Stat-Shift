@@ -13,7 +13,7 @@ import {
 } from "./effects.mjs";
 import { registerSocket } from "./socket.mjs";
 import { getDustStats, setDustStats, transferDustStats } from "./stats.mjs";
-import { openHomebrewSave, openStatShift, renderLauncher } from "./ui.mjs";
+import { openHomebrew, openHomebrewSave, openStatShift, renderLauncher } from "./ui.mjs";
 import {
   applyAttackRollModes,
   handleExtendedEffectCreated,
@@ -37,6 +37,7 @@ Hooks.once("ready", () => {
 
   game.statShift = {
     open: openStatShift,
+    openHomebrew,
     openHomebrewSave,
     applyPreset,
     applyHomebrew,
