@@ -14,9 +14,19 @@
   padding: 0;
   overflow: hidden;
   color: var(--stat-shift-ink);
+  color-scheme: dark;
   background:
     radial-gradient(circle at 90% 0%, rgb(209 154 66 / 10%), transparent 35%),
     linear-gradient(145deg, #10131a, #191e29 65%, #11151d);
+}
+
+.stat-shift-window .window-content :where(button:not(.active)) {
+  color: var(--stat-shift-ink);
+}
+
+.stat-shift-window .window-content :where(.hint, .notes) {
+  color: var(--stat-shift-muted);
+  opacity: 1;
 }
 
 .stat-shift-shell {
@@ -168,6 +178,11 @@
 .stat-shift-form input:disabled {
   color: #8790a1;
   background: #191e29;
+}
+
+.stat-shift-form select option {
+  background: #0e1219;
+  color: var(--stat-shift-ink);
 }
 
 .stat-shift-grid {
@@ -608,8 +623,41 @@
 }
 
 .stat-shift-save-prompt {
+  --stat-shift-context-text: #f2f4f8;
+  --stat-shift-context-muted: #c4cad5;
   display: grid;
   gap: 12px;
+  color: var(--stat-shift-context-text);
+  color-scheme: dark;
+}
+
+.stat-shift-save-request,
+.stat-shift-card {
+  --stat-shift-context-text: #f2f4f8;
+  --stat-shift-context-muted: #c4cad5;
+  color: var(--stat-shift-context-text);
+}
+
+body:has(#interface.theme-light) :is(.stat-shift-save-prompt, .stat-shift-save-request, .stat-shift-card) {
+  --stat-shift-context-text: #28251f;
+  --stat-shift-context-muted: #625d54;
+  color-scheme: light;
+}
+
+body:has(#interface.theme-dark) :is(.stat-shift-save-prompt, .stat-shift-save-request, .stat-shift-card) {
+  --stat-shift-context-text: #f2f4f8;
+  --stat-shift-context-muted: #c4cad5;
+  color-scheme: dark;
+}
+
+.stat-shift-save-prompt :where(input, select, textarea, button) {
+  color: var(--stat-shift-context-text);
+}
+
+.stat-shift-save-prompt :where(input, textarea)::placeholder,
+.stat-shift-save-prompt :where(.hint, .notes, small) {
+  color: var(--stat-shift-context-muted);
+  opacity: 1;
 }
 
 .stat-shift-save-prompt__hero {
@@ -648,7 +696,7 @@
 
 .stat-shift-save-prompt p {
   margin: 0;
-  color: var(--color-text-dark-secondary);
+  color: var(--stat-shift-context-muted);
   font-size: 12px;
 }
 
@@ -712,7 +760,7 @@
 
 .stat-shift-card p,
 .stat-shift-card footer {
-  color: var(--color-text-dark-secondary);
+  color: var(--stat-shift-context-muted);
   font-size: 11px;
 }
 
