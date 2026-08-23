@@ -39,20 +39,22 @@ export class StatShiftApp extends Application {
     this.activeTab = "presets";
     this.fixedPreset = "potion";
     this.statsActorId = null;
-    this.integrationSave = null;
+    this.integrationHomebrew = null;
   }
 
-  configureHomebrewSave(options = {}) {
-    this.activeTab = "save";
-    this.integrationSave = {
+  configureHomebrew(options = {}) {
+    this.activeTab = "homebrew";
+    this.integrationHomebrew = {
       actorUuid: String(options.actorUuid ?? ""),
       sourceLabel: String(options.sourceLabel ?? "Counterspell PLUS — Identify"),
+      requireSave: Boolean(options.requireSave || options.lockSaveRequirement),
+      lockSaveRequirement: Boolean(options.lockSaveRequirement),
       defaults: options.defaults && typeof options.defaults === "object" ? options.defaults : {}
     };
   }
 
-  clearIntegrationSave() {
-    this.integrationSave = null;
+  clearIntegrationHomebrew() {
+    this.integrationHomebrew = null;
   }
 
   static get defaultOptions() {
@@ -79,7 +81,6 @@ export class StatShiftApp extends Application {
     const tabs = [
       ["presets", "fa-flask", tr("Fixed Effects", "Efekty sztywne")],
       ["homebrew", "fa-sliders", "Homebrew"],
-      ["save", "fa-shield-halved", tr("Homebrew Save", "Homebrew z rzutem")],
       ["dust", "fa-paw", "Dust of Potential"],
       ["data", "fa-chart-column", tr("GM Data", "Dane GMa")]
     ];
@@ -109,7 +110,6 @@ export class StatShiftApp extends Application {
 
   renderActiveTab() {
     if (this.activeTab === "homebrew") return this.renderHomebrew();
-    if (this.activeTab === "save") return this.renderSave();
     if (this.activeTab === "dust") return this.renderDust();
     if (this.activeTab === "data") return this.renderData();
     return this.renderPresets();
@@ -176,36 +176,18 @@ export class StatShiftApp extends Application {
   }
 
   renderHomebrew() {
-    return `
-      <form class="stat-shift-form" data-form="homebrew">
-        ${sectionTitle(tr("Homebrew ability effect", "Homebrew — zmiana cech"), tr(
-          "Apply one or several editable changes without a saving throw.",
-          "Nałóż jedną lub kilka edytowalnych zmian bez rzutu obronnego."
-        ))}
-        ${actorPicker("actorId", "homebrew-actor", defaultActorId())}
-        <div class="stat-shift-grid two">
-          <label><span>${tr("Effect name", "Nazwa efektu")}</span><input type="text" name="effectName" value="${tr("Homebrew Stat Shift", "Homebrew — Zmiana cech")}"></label>
-          ${modeField()}
-        </div>
-        <label><span>${tr("Icon path", "Ścieżka ikony")}</span><input type="text" name="icon" value="icons/magic/control/buff-strength-muscle-damage-orange.webp"></label>
-        ${modifiersEditor("mod", {})}
-        ${durationFields(1, "hours")}
-        ${rollModeField()}
-        <label><span>${tr("Description", "Opis")}</span><textarea name="description" rows="2"></textarea></label>
-        <div class="stat-shift-actions">
-          <button type="button" data-action="apply-homebrew" class="stat-shift-primary">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>${tr("Apply Without Roll", "Nałóż bez rzutu")}
-          </button>
-        </div>
-      </form>`;
-  }
-
-  renderSave() {
-    const integration = this.integrationSave;
+    const integration = this.integrationHomebrew;
     const defaults = integration?.defaults ?? {};
     const actorId = integration?.actorUuid || defaultActorId();
+    const noSaveRequired = integration?.requireSave
+      ? false
+      : defaults.noSaveRequired === undefined
+        ? true
+        : Boolean(defaults.noSaveRequired);
     const title = String(defaults.title ?? tr("Resist the Effect", "Oprzyj się efektowi"));
-    const effectName = String(defaults.effectName ?? tr("Homebrew Effect", "Efekt Homebrew"));
+    const effectName = String(defaults.effectName ?? (integration
+      ? tr("Homebrew Effect", "Efekt Homebrew")
+      : tr("Homebrew Stat Shift", "Homebrew — Zmiana cech")));
     const description = String(defaults.description ?? "");
     const saveAbility = ABILITIES.includes(defaults.saveAbility) ? defaults.saveAbility : "con";
     const dc = numberValue(defaults.dc, 15);
@@ -214,66 +196,94 @@ export class StatShiftApp extends Application {
     const rollMode = ["publicroll", "gmroll", "blindroll", "selfroll"].includes(defaults.rollMode) ? defaults.rollMode : "publicroll";
     const durationValue = numberValue(defaults.durationValue, 1);
     const durationUnit = ["turns", "minutes", "hours", "days", "permanent"].includes(defaults.durationUnit) ? defaults.durationUnit : "hours";
+    const directModifiers = defaults.directModifiers ?? defaults.modifiers ?? {};
     const successModifiers = defaults.successModifiers ?? {};
     const failureModifiers = defaults.failureModifiers ?? { con: -2 };
+    const directExtraEffects = normalizeExtraEffects(defaults.directExtraEffects ?? defaults.extraEffects);
     const successExtraEffects = normalizeExtraEffects(defaults.successExtraEffects);
     const failureExtraEffects = normalizeExtraEffects(defaults.failureExtraEffects);
+    const directDescription = String(defaults.directDescription ?? description);
     const successDescription = String(defaults.successDescription ?? description);
     const failureDescription = String(defaults.failureDescription ?? description);
     const applySuccess = Boolean(defaults.applySuccess);
     const applyFailure = defaults.applyFailure === undefined ? true : Boolean(defaults.applyFailure);
+    const directIcon = String(defaults.directIcon ?? defaults.icon ?? "icons/magic/control/buff-strength-muscle-damage-orange.webp");
     const successIcon = String(defaults.successIcon ?? "icons/magic/defensive/shield-barrier-glowing-triangle-green.webp");
     const failureIcon = String(defaults.failureIcon ?? "icons/magic/control/debuff-energy-hold-red.webp");
     return `
-      <form class="stat-shift-form" data-form="save">
-        ${sectionTitle(tr("Homebrew saving throw", "Homebrew — rzut obronny"), tr(
-          "Success and failure can each apply changes, or do nothing.",
-          "Sukces i porażka mogą niezależnie nakładać zmiany albo nie robić nic."
+      <form class="stat-shift-form" data-form="homebrew">
+        ${sectionTitle(tr("Homebrew effect", "Efekt Homebrew"), tr(
+          "Use the full effect editor with an optional saving throw.",
+          "Użyj pełnego edytora efektu z opcjonalnym rzutem obronnym."
         ))}
-        ${actorPicker("actorId", "save-actor", actorId, null, null, {
+        ${actorPicker("actorId", "homebrew-actor", actorId, null, null, {
           locked: Boolean(integration?.actorUuid),
           sourceLabel: integration?.sourceLabel
         })}
-        <div class="stat-shift-grid three">
-          <label><span>${tr("Chat title", "Tytuł na czacie")}</span><input type="text" name="title" value="${escapeHtml(title)}"></label>
-          ${abilityField("saveAbility", saveAbility)}
-          <label><span>DC</span><input type="number" name="dc" value="${dc}" min="1"></label>
+        <div class="stat-shift-save-choice${integration?.lockSaveRequirement ? " locked" : ""}">
+          <label class="stat-shift-toggle">
+            <input type="checkbox" name="noSaveRequired"${noSaveRequired ? " checked" : ""}${integration?.lockSaveRequirement ? " disabled" : ""}>
+            <span>${tr("Does not require a saving throw", "Nie wymaga rzutu obronnego")}</span>
+          </label>
+          <small>${integration?.lockSaveRequirement
+            ? tr("The module that opened this form requires a saving throw.", "Moduł, który otworzył ten formularz, wymaga rzutu obronnego.")
+            : tr("When selected, the configured effect is added directly to the actor without a roll.", "Po zaznaczeniu skonfigurowany efekt zostanie dodany bezpośrednio do karty bez rzutu.")}</small>
         </div>
-        <label>
-          <span>${tr("Automatic roll modifier", "Automatyczny modyfikator rzutu")}</span>
-          <input type="text" name="rollBonus" value="${escapeHtml(rollBonus)}" placeholder="0, 1d4, 1d6 + 2" spellcheck="false">
-          <small class="stat-shift-roll-formula-hint">${tr("Enter a number or dice formula, for example 3, 1d4, or 1d6 + 2.", "Wpisz liczbę albo formułę kości, np. 3, 1d4 lub 1d6 + 2.")}</small>
-        </label>
         <div class="stat-shift-grid two">
-          <label><span>${tr("Effect base name", "Bazowa nazwa efektu")}</span><input type="text" name="effectName" value="${escapeHtml(effectName)}"></label>
+          <label><span>${tr("Effect name", "Nazwa efektu")}</span><input type="text" name="effectName" value="${escapeHtml(effectName)}"></label>
           ${modeField(mode)}
         </div>
         ${rollModeField(rollMode)}
         ${durationFields(durationValue, durationUnit)}
-        <div class="stat-shift-outcomes">
-          <section class="success">
-            <label class="stat-shift-toggle"><input type="checkbox" name="applySuccess"${applySuccess ? " checked" : ""}><span>${tr("Apply changes on success", "Nałóż zmiany po sukcesie")}</span></label>
-            <label><span>${tr("Success icon", "Ikona sukcesu")}</span><input type="text" name="successIcon" value="${escapeHtml(successIcon)}"></label>
-            ${modifiersEditor("success", successModifiers)}
-            ${extraEffectsEditor("success", successExtraEffects, resolveActor(actorId))}
-            <label><span>${tr("Success effect description", "Opis efektu sukcesu")}</span><textarea name="successDescription" rows="3">${escapeHtml(successDescription)}</textarea></label>
-          </section>
-          <section class="failure">
-            <label class="stat-shift-toggle"><input type="checkbox" name="applyFailure"${applyFailure ? " checked" : ""}><span>${tr("Apply changes on failure", "Nałóż zmiany po porażce")}</span></label>
-            <label><span>${tr("Failure icon", "Ikona porażki")}</span><input type="text" name="failureIcon" value="${escapeHtml(failureIcon)}"></label>
-            ${modifiersEditor("failure", failureModifiers)}
-            ${extraEffectsEditor("failure", failureExtraEffects, resolveActor(actorId))}
-            <label><span>${tr("Failure effect description", "Opis efektu porażki")}</span><textarea name="failureDescription" rows="3">${escapeHtml(failureDescription)}</textarea></label>
+        <div data-homebrew-direct${noSaveRequired ? "" : " hidden"}>
+          <section class="stat-shift-direct-effect">
+            <h3><i class="fa-solid fa-wand-magic-sparkles"></i>${tr("Effect applied without a saving throw", "Efekt nakładany bez rzutu obronnego")}</h3>
+            <label><span>${tr("Effect icon", "Ikona efektu")}</span><input type="text" name="directIcon" value="${escapeHtml(directIcon)}"></label>
+            ${modifiersEditor("direct", directModifiers)}
+            ${extraEffectsEditor("direct", directExtraEffects, resolveActor(actorId))}
+            <label><span>${tr("Effect description", "Opis efektu")}</span><textarea name="directDescription" rows="3">${escapeHtml(directDescription)}</textarea></label>
           </section>
         </div>
-        <label>
-          <span>${tr("Shared fallback description", "Wspólny opis zapasowy")}</span>
-          <textarea name="description" rows="2">${escapeHtml(description)}</textarea>
-          <small>${tr("Used only when the selected outcome description is empty.", "Używany tylko wtedy, gdy opis wybranego wyniku jest pusty.")}</small>
-        </label>
+        <div class="stat-shift-save-fields" data-homebrew-save${noSaveRequired ? " hidden" : ""}>
+          <div class="stat-shift-grid three">
+            <label><span>${tr("Chat title", "Tytuł na czacie")}</span><input type="text" name="title" value="${escapeHtml(title)}"></label>
+            ${abilityField("saveAbility", saveAbility)}
+            <label><span>DC</span><input type="number" name="dc" value="${dc}" min="1"></label>
+          </div>
+          <label>
+            <span>${tr("Automatic roll modifier", "Automatyczny modyfikator rzutu")}</span>
+            <input type="text" name="rollBonus" value="${escapeHtml(rollBonus)}" placeholder="0, 1d4, 1d6 + 2" spellcheck="false">
+            <small class="stat-shift-roll-formula-hint">${tr("Enter a number or dice formula, for example 3, 1d4, or 1d6 + 2.", "Wpisz liczbę albo formułę kości, np. 3, 1d4 lub 1d6 + 2.")}</small>
+          </label>
+          <div class="stat-shift-outcomes">
+            <section class="success">
+              <label class="stat-shift-toggle"><input type="checkbox" name="applySuccess"${applySuccess ? " checked" : ""}><span>${tr("Apply changes on success", "Nałóż zmiany po sukcesie")}</span></label>
+              <label><span>${tr("Success icon", "Ikona sukcesu")}</span><input type="text" name="successIcon" value="${escapeHtml(successIcon)}"></label>
+              ${modifiersEditor("success", successModifiers)}
+              ${extraEffectsEditor("success", successExtraEffects, resolveActor(actorId))}
+              <label><span>${tr("Success effect description", "Opis efektu sukcesu")}</span><textarea name="successDescription" rows="3">${escapeHtml(successDescription)}</textarea></label>
+            </section>
+            <section class="failure">
+              <label class="stat-shift-toggle"><input type="checkbox" name="applyFailure"${applyFailure ? " checked" : ""}><span>${tr("Apply changes on failure", "Nałóż zmiany po porażce")}</span></label>
+              <label><span>${tr("Failure icon", "Ikona porażki")}</span><input type="text" name="failureIcon" value="${escapeHtml(failureIcon)}"></label>
+              ${modifiersEditor("failure", failureModifiers)}
+              ${extraEffectsEditor("failure", failureExtraEffects, resolveActor(actorId))}
+              <label><span>${tr("Failure effect description", "Opis efektu porażki")}</span><textarea name="failureDescription" rows="3">${escapeHtml(failureDescription)}</textarea></label>
+            </section>
+          </div>
+          <label>
+            <span>${tr("Shared fallback description", "Wspólny opis zapasowy")}</span>
+            <textarea name="description" rows="2">${escapeHtml(description)}</textarea>
+            <small>${tr("Used only when the selected outcome description is empty.", "Używany tylko wtedy, gdy opis wybranego wyniku jest pusty.")}</small>
+          </label>
+        </div>
         <div class="stat-shift-actions">
-          <button type="button" data-action="request-save" class="stat-shift-primary">
-            <i class="fa-solid fa-shield-halved"></i>${tr("Request Saving Throw", "Poproś o rzut obronny")}
+          <button type="button" data-action="run-homebrew" class="stat-shift-primary"
+            data-direct-label="${escapeHtml(tr("Apply Without Roll", "Nałóż bez rzutu"))}"
+            data-save-label="${escapeHtml(tr("Request Saving Throw", "Poproś o rzut obronny"))}">
+            <i class="fa-solid ${noSaveRequired ? "fa-wand-magic-sparkles" : "fa-shield-halved"}"></i><span>${noSaveRequired
+              ? tr("Apply Without Roll", "Nałóż bez rzutu")
+              : tr("Request Saving Throw", "Poproś o rzut obronny")}</span>
           </button>
         </div>
       </form>`;
@@ -421,8 +431,11 @@ export class StatShiftApp extends Application {
       );
     });
     html.find("[data-dust-profile]").on("change", event => updateDustProfile(event.currentTarget.closest("form")));
-    html.find("form[data-form='save'] select[name='actorId']").on("change", event => {
+    html.find("form[data-form='homebrew'] select[name='actorId']").on("change", event => {
       refreshExtraEffectTargets(event.currentTarget.closest("form"), resolveActor(event.currentTarget.value));
+    });
+    html.find("form[data-form='homebrew'] input[name='noSaveRequired']").on("change", event => {
+      syncHomebrewMode(event.currentTarget.closest("form"));
     });
     html.on("click", "[data-add-extra-effect]", event => addExtraEffectRow(event.currentTarget));
     html.on("click", "[data-remove-extra-effect]", event => event.currentTarget.closest("[data-extra-effect-row]")?.remove());
@@ -446,8 +459,7 @@ export class StatShiftApp extends Application {
   async handleAction(action, form) {
     try {
       if (action === "apply-preset") await this.applyPreset(form);
-      if (action === "apply-homebrew") await this.applyHomebrew(form);
-      if (action === "request-save") await this.requestSave(form);
+      if (action === "run-homebrew") await this.runHomebrew(form);
       if (action === "run-dust") await this.runDust(form);
       if (action === "save-stats") await this.saveStats(form);
       if (action === "transfer-stats") await this.transferStats(form);
@@ -473,25 +485,32 @@ export class StatShiftApp extends Application {
     ui.notifications.info(tr(`Effect applied to ${actor.name}.`, `Nałożono efekt na ${actor.name}.`));
   }
 
-  async applyHomebrew(form) {
+  async runHomebrew(form) {
     const data = formObject(form);
     const actor = requiredActor(data.actorId);
+    const noSaveRequired = this.integrationHomebrew?.lockSaveRequirement
+      ? false
+      : Boolean(data.noSaveRequired);
+    if (!noSaveRequired) {
+      await this.requestSave(form, data, actor);
+      return;
+    }
+    const extraEffects = validateExtraEffects(readExtraEffects(data, "direct"), actor);
     await applyHomebrew(actor, {
       effectName: data.effectName,
-      icon: data.icon,
+      icon: data.directIcon,
       mode: data.mode,
-      modifiers: readModifiers(data, "mod"),
+      modifiers: readModifiers(data, "direct"),
+      extraEffects,
       durationValue: numberValue(data.durationValue, 1),
       durationUnit: data.durationUnit,
       rollMode: data.rollMode,
-      description: data.description
+      description: data.directDescription
     });
     ui.notifications.info(tr(`Effect applied to ${actor.name}.`, `Nałożono efekt na ${actor.name}.`));
   }
 
-  async requestSave(form) {
-    const data = formObject(form);
-    const actor = requiredActor(data.actorId);
+  async requestSave(form, data = formObject(form), actor = requiredActor(data.actorId)) {
     const rollBonus = normalizeRollModifier(data.rollBonus);
     if (!isValidRollModifier(rollBonus)) throw new Error(tr(
       "The automatic roll modifier is not a valid dice formula.",
@@ -807,6 +826,20 @@ function refreshExtraEffectTargets(form, actor) {
   }
 }
 
+function syncHomebrewMode(form) {
+  if (!form) return;
+  const noSaveRequired = Boolean(form.elements.noSaveRequired?.checked);
+  for (const element of form.querySelectorAll("[data-homebrew-direct]")) element.hidden = !noSaveRequired;
+  for (const element of form.querySelectorAll("[data-homebrew-save]")) element.hidden = noSaveRequired;
+  const button = form.querySelector("[data-action='run-homebrew']");
+  if (!button) return;
+  const icon = button.querySelector("i");
+  const label = button.querySelector("span");
+  icon?.classList.toggle("fa-wand-magic-sparkles", noSaveRequired);
+  icon?.classList.toggle("fa-shield-halved", !noSaveRequired);
+  if (label) label.textContent = noSaveRequired ? button.dataset.directLabel : button.dataset.saveLabel;
+}
+
 function durationFields(value, selectedUnit) {
   return `<div class="stat-shift-grid two">
     <label><span>${tr("Duration value", "Wartość czasu")}</span><input type="number" name="durationValue" value="${value}" min="0" step="1"></label>
@@ -914,24 +947,39 @@ export function openStatShift() {
     return;
   }
   appInstance ??= new StatShiftApp();
-  appInstance.clearIntegrationSave();
+  appInstance.clearIntegrationHomebrew();
   appInstance.render(true);
 }
 
-export function openHomebrewSave(options = {}) {
+export function openHomebrew(options = {}) {
   if (!game.user.isGM) {
     ui.notifications.warn(tr("Only a GM can open Stat Shift.", "Tylko GM może otworzyć Stat Shift."));
     return false;
   }
-  const actor = resolveActor(String(options.actorUuid ?? ""));
-  if (!actor) {
+  const requestedActorUuid = String(options.actorUuid ?? "");
+  const actor = requestedActorUuid ? resolveActor(requestedActorUuid) : null;
+  if (requestedActorUuid && !actor) {
     ui.notifications.error(tr("The locked target actor was not found.", "Nie znaleziono zablokowanego aktora docelowego."));
     return false;
   }
   appInstance ??= new StatShiftApp();
-  appInstance.configureHomebrewSave({ ...options, actorUuid: actor.uuid });
+  appInstance.configureHomebrew({ ...options, actorUuid: actor?.uuid ?? "" });
   appInstance.render(true);
   return true;
+}
+
+export function openHomebrewSave(options = {}) {
+  const actorUuid = String(options.actorUuid ?? "");
+  if (!actorUuid) {
+    ui.notifications.error(tr("The locked target actor was not found.", "Nie znaleziono zablokowanego aktora docelowego."));
+    return false;
+  }
+  return openHomebrew({
+    ...options,
+    actorUuid,
+    requireSave: true,
+    lockSaveRequirement: true
+  });
 }
 
 export function renderLauncher() {
