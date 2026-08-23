@@ -1,7 +1,8 @@
 # Stat Shift
 
-Stat Shift is a Foundry VTT module for managing temporary ability score
-changes caused by potions, creature abilities, substances, and custom effects.
+Stat Shift is a Foundry VTT module for managing temporary ability scores,
+roll modifiers, movement, senses, defenses, hit points, spell slots, and other
+custom effects.
 
 ## Compatibility
 
@@ -35,14 +36,32 @@ The GM can edit:
 - Editable title, ability, DC, target, roll mode, and duration.
 - Success and failure changes are configured independently.
 - Either outcome may apply an effect or do nothing.
-- The player receives a saving throw window with an additional modifier and
-  Normal / Advantage / Disadvantage choices.
+- Each outcome can modify ability scores, individual or all skills, tools,
+  saving throws and melee/ranged weapon or spell attacks.
+- Skill, tool, save and attack changes support both formulas and
+  Advantage/Disadvantage.
+- Outcomes may increase or decrease individual senses, individual or all
+  speeds, AC, maximum HP, and maximum spell slots of levels 1–9.
+- Success and failure have separate optional descriptions. Description-only
+  outcomes are supported.
+- Every additional modifier has an optional situational note. The note is
+  displayed in the Active Effect and chat card; it is descriptive and does not
+  automatically interpret arbitrary written conditions.
+- The GM's automatic modifier and the player's additional modifier accept both
+  flat numbers and dice formulas such as `1d4` or `1d6 + 2`.
+- The player receives a saving throw window with Normal / Advantage /
+  Disadvantage choices.
 - Requests are delivered as private Foundry chat documents. The window opens
   automatically, and the private chat card provides a fallback button if the
   window does not appear or must be reopened.
 - The GM receives a delivery notification only after the private request has
   actually been created for the owning player.
 - The roll uses the native dnd5e 5.3.3 saving throw workflow.
+
+Sense changes update the actor's dnd5e sense ranges. Foundry's core dnd5e
+system does not automatically convert those Active Effect values into token
+vision configuration. Spell-slot changes adjust the maximum while the effect
+is active and restore the actor's prior slot override when the effect ends.
 
 ### Dust of Potential
 
@@ -118,8 +137,9 @@ Counterspell PLUS can open the Stat Shift **Homebrew Save** tab for an item
 identification risk. The identifying actor is preselected and locked as the
 target, while the GM may still edit every saving throw, outcome, modifier,
 duration, icon, description, and roll-mode field before sending the request.
-The Identify spell level is prefilled as an automatic bonus to the saving
-throw and remains visible and editable in the GM form.
+The Identify spell level is prefilled as an automatic modifier to the saving
+throw and remains visible and editable in the GM form. The GM may replace it
+with a flat number or a dice formula.
 
 ## GM launcher
 
@@ -142,7 +162,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.1.7`.
+2. Create and push a semantic version tag, for example `v0.2.0`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
