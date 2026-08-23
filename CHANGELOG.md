@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Added theme-aware text contrast to the dark Stat Shift editor, saving-throw
+  prompts and module chat surfaces.
+- Dark surfaces now keep light labels, controls and helper text, while Foundry
+  light-theme prompts and cards use dark text.
+
 ## 0.2.0
 
 - Expanded Homebrew Save outcomes beyond ability scores with skill, tool,
