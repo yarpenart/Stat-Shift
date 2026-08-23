@@ -1,5 +1,6 @@
 import { MODULE_ID, SOCKET_NAME, tr } from "./constants.mjs";
 import { applyDustOutcome, applySavingThrowOutcome, escapeHtml } from "./effects.mjs";
+import { activeRollModifiers, isValidRollModifier, normalizeRollModifier } from "./roll-formula.mjs";
 
 const pendingRequests = new Map();
 const activePrompts = new Set();
@@ -68,7 +69,7 @@ async function showSavePrompt(request) {
     return;
   }
   const ability = CONFIG.DND5E.abilities?.[request.saveAbility]?.label ?? request.saveAbility?.toUpperCase();
-  const automaticBonus = Number(request.rollBonus) || 0;
+  const automaticBonus = normalizeRollModifier(request.rollBonus);
   const content = `
     <div class="stat-shift-save-prompt">
       <div class="stat-shift-save-prompt__hero">
@@ -80,9 +81,10 @@ async function showSavePrompt(request) {
       </div>
       <label>
         <span>${tr("Additional modifier", "Dodatkowy modyfikator")}</span>
-        <input type="number" name="bonus" value="0" step="1">
+        <input type="text" name="bonus" value="0" placeholder="0, 1d4, 1d6 + 2" spellcheck="false">
+        <small class="stat-shift-roll-formula-hint">${tr("Enter a number or dice formula.", "Wpisz liczbę albo formułę kości.")}</small>
       </label>
-      ${automaticBonus ? `<p><strong>${tr("Automatic bonus", "Automatyczny bonus")}: ${automaticBonus >= 0 ? "+" : ""}${escapeHtml(automaticBonus)}</strong></p>` : ""}
+      ${automaticBonus !== "0" ? `<p><strong>${tr("Automatic modifier", "Automatyczny modyfikator")}: ${escapeHtml(automaticBonus)}</strong></p>` : ""}
       <label>
         <span>${tr("Roll mode", "Tryb rzutu")}</span>
         <select name="advantageMode">
@@ -97,34 +99,47 @@ async function showSavePrompt(request) {
       )}</p>
     </div>`;
 
-  const selection = await foundry.applications.api.DialogV2.wait({
-    window: { title: request.title },
-    position: { width: 430 },
-    content,
-    buttons: [
-      {
-        action: "roll",
-        icon: "fa-solid fa-dice-d20",
-        label: tr("Roll Saving Throw", "Rzuć rzut obronny"),
-        default: true,
-        callback: (_event, button) => ({
+  while (true) {
+    const selection = await foundry.applications.api.DialogV2.wait({
+      window: { title: request.title },
+      position: { width: 430 },
+      content,
+      buttons: [
+        {
           action: "roll",
-          bonus: Number(button.form?.elements?.bonus?.value) || 0,
-          advantageMode: button.form?.elements?.advantageMode?.value ?? "normal"
-        })
-      },
-      {
-        action: "cancel",
-        icon: "fa-solid fa-xmark",
-        label: tr("Cancel", "Anuluj"),
-        callback: () => ({ action: "cancel" })
-      }
-    ],
-    rejectClose: false
-  });
+          icon: "fa-solid fa-dice-d20",
+          label: tr("Roll Saving Throw", "Rzuć rzut obronny"),
+          default: true,
+          callback: (_event, button) => ({
+            action: "roll",
+            bonus: normalizeRollModifier(button.form?.elements?.bonus?.value),
+            advantageMode: button.form?.elements?.advantageMode?.value ?? "normal"
+          })
+        },
+        {
+          action: "cancel",
+          icon: "fa-solid fa-xmark",
+          label: tr("Cancel", "Anuluj"),
+          callback: () => ({ action: "cancel" })
+        }
+      ],
+      rejectClose: false
+    });
 
-  if (selection?.action === "roll") await performSave(actor, request, selection);
-  else await sendCancellation(actor, request);
+    if (selection?.action !== "roll") {
+      await sendCancellation(actor, request);
+      return;
+    }
+    if (!isValidRollModifier(selection.bonus)) {
+      ui.notifications.error(tr(
+        "The additional modifier is not a valid dice formula.",
+        "Dodatkowy modyfikator nie jest poprawną formułą kości."
+      ));
+      continue;
+    }
+    await performSave(actor, request, selection);
+    return;
+  }
 }
 
 async function openRemoteSavePrompt(request) {
@@ -191,10 +206,14 @@ async function handleTransportMessage(message) {
 }
 
 async function performSave(actor, request, selection = {}) {
-  const bonus = Number(selection.bonus) || 0;
-  const automaticBonus = Number(request.rollBonus) || 0;
+  const bonus = normalizeRollModifier(selection.bonus);
+  const automaticBonus = normalizeRollModifier(request.rollBonus);
+  if (!isValidRollModifier(bonus) || !isValidRollModifier(automaticBonus)) throw new Error(tr(
+    "The saving throw contains an invalid modifier formula.",
+    "Rzut obronny zawiera niepoprawną formułę modyfikatora."
+  ));
   const advantageMode = selection.advantageMode ?? "normal";
-  const extraParts = [automaticBonus, bonus].filter(value => value !== 0).map(String);
+  const extraParts = activeRollModifiers(automaticBonus, bonus);
   const rolls = await actor.rollSavingThrow({
     ability: request.saveAbility,
     target: Number(request.dc),

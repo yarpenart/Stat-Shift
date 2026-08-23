@@ -8,6 +8,12 @@ import {
   tr
 } from "./constants.mjs";
 import { recordDustOutcome } from "./stats.mjs";
+import {
+  buildExtendedDescription,
+  extraEffectDisplayEntries,
+  extraEffectsToChanges,
+  normalizeExtraEffects
+} from "./extended-effects.mjs";
 
 const AQUA_SUSPENSION_FLAG = "aquaVitaeSuspension";
 const AQUA_SYNC_OPTION = "statShiftAquaSync";
@@ -246,12 +252,19 @@ export async function applySavingThrowOutcome(actor, request, outcome, rollData 
   const success = outcome === "success";
   const enabled = success ? request.applySuccess : request.applyFailure;
   const modifiers = success ? request.successModifiers : request.failureModifiers;
+  const extraEffects = normalizeExtraEffects(success ? request.successExtraEffects : request.failureExtraEffects);
+  const outcomeDescription = String(
+    (success ? request.successDescription : request.failureDescription) || request.description || ""
+  );
   const prefix = success ? "S" : "F";
   const name = `${prefix}. ${request.effectName || request.title}`;
   let effect = null;
   if (enabled) {
-    const changes = modifiersToChanges(modifiers, request.mode || "add");
-    if (changes.length) {
+    const changes = [
+      ...modifiersToChanges(modifiers, request.mode || "add"),
+      ...extraEffectsToChanges(extraEffects, actor)
+    ];
+    if (changes.length || extraEffects.length || outcomeDescription.trim()) {
       effect = await createStatEffect(actor, {
         name,
         img: success ? request.successIcon : request.failureIcon,
@@ -259,19 +272,24 @@ export async function applySavingThrowOutcome(actor, request, outcome, rollData 
         changes,
         durationValue: request.durationValue,
         durationUnit: request.durationUnit,
-        description: request.description,
+        description: buildExtendedDescription(outcomeDescription, extraEffects, escapeHtml),
         kind: "homebrewSave",
-        extraFlags: { outcome, requestId: request.id }
+        extraFlags: { outcome, requestId: request.id, extendedEffects: extraEffects }
       });
     }
   }
+  const abilityChanges = Object.entries(modifiers ?? {}).map(([ability, value]) => ({
+    ability,
+    value,
+    mode: request.mode
+  }));
   await postEffectCard(actor, {
     title: request.title,
     image: effect?.img || (success ? request.successIcon : request.failureIcon),
     outcome: success ? tr("Saving throw succeeded", "Rzut obronny zdany") : tr("Saving throw failed", "Rzut obronny niezdany"),
     total: rollData.total,
     dc: request.dc,
-    changes: enabled ? Object.entries(modifiers).map(([ability, value]) => ({ ability, value, mode: request.mode })) : [],
+    changes: enabled ? [...abilityChanges, ...extraEffectDisplayEntries(extraEffects, actor)] : [],
     durationValue: request.durationValue,
     durationUnit: request.durationUnit,
     rollMode: request.rollMode
@@ -597,6 +615,7 @@ function changesFromEffect(changes) {
 }
 
 function modifierLabel(change) {
+  if (change.label) return change.condition ? `${change.label} — ${change.condition}` : change.label;
   const ability = localName(ABILITY_LABELS[change.ability]) || change.ability?.toUpperCase();
   const value = numeric(change.value);
   if (change.mode === "upgrade") return `${ability} ≥ ${value}`;
@@ -627,13 +646,13 @@ export async function postEffectCard(actor, {
   durationUnit,
   rollMode = "publicroll"
 }) {
-  const visibleChanges = changes.filter(change => numeric(change.value) !== 0);
+  const visibleChanges = changes.filter(change => change.label || numeric(change.value) !== 0);
   const rollLine = Number.isFinite(Number(total))
     ? `<div class="stat-shift-card__roll">${tr("Result", "Wynik")}: <strong>${escapeHtml(total)}</strong> / DC ${escapeHtml(dc)}</div>`
     : "";
   const changesLine = visibleChanges.length
     ? `<div class="stat-shift-card__changes">${visibleChanges.map(change => `<span>${escapeHtml(modifierLabel(change))}</span>`).join("")}</div>`
-    : `<div class="stat-shift-card__changes"><span>${tr("No ability changes", "Brak zmian cech")}</span></div>`;
+    : `<div class="stat-shift-card__changes"><span>${tr("No mechanical changes", "Brak zmian mechanicznych")}</span></div>`;
   const content = `
     <section class="stat-shift-card">
       <header>
