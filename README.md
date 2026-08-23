@@ -21,17 +21,20 @@ custom effects.
 - Shadow Strength Drain rolls an editable formula, applies the rolled Strength
   loss, and removes it after a short or long rest.
 
-### Homebrew without a saving throw
+### Homebrew effects with an optional saving throw
 
-The GM can edit:
+The former Homebrew and Homebrew Save editors are now one Homebrew workflow.
+The GM chooses **Does not require a saving throw** to apply the configured
+effect directly to the actor, or clears it to request a save.
 
-- effect name, icon, description, and target;
-- every ability score modifier;
-- change mode: Add, Upgrade, Override, or Downgrade;
-- duration in turns, minutes, hours, days, or permanently;
-- chat visibility.
-
-### Homebrew with a saving throw
+- Effect name, icon, description, target, duration, chat visibility and change
+  mode remain editable.
+- The full expanded effect editor is available in both modes: ability scores,
+  skills, tools, saving throws, attacks, advantage/disadvantage, senses, speed,
+  AC, maximum HP and spell slots.
+- Direct mode creates the Active Effect immediately and never opens a roll
+  prompt.
+- Saving-throw mode keeps independent success and failure configurations.
 
 - Editable title, ability, DC, target, roll mode, and duration.
 - Success and failure changes are configured independently.
@@ -133,13 +136,18 @@ continuous step.
 
 ### Counterspell PLUS — Identify
 
-Counterspell PLUS can open the Stat Shift **Homebrew Save** tab for an item
-identification risk. The identifying actor is preselected and locked as the
-target, while the GM may still edit every saving throw, outcome, modifier,
-duration, icon, description, and roll-mode field before sending the request.
+Counterspell PLUS can open the shared Stat Shift **Homebrew** editor for an
+item identification risk through `game.statShift.openHomebrew(...)`. The
+identifying actor is preselected and locked as the target. The integration also
+locks the workflow to saving-throw mode, while the GM may still edit every
+save, outcome, modifier, duration, icon, description, and roll-mode field
+before sending the request.
 The Identify spell level is prefilled as an automatic modifier to the saving
 throw and remains visible and editable in the GM form. The GM may replace it
 with a flat number or a dice formula.
+
+The older `game.statShift.openHomebrewSave(...)` API remains available as a
+backward-compatible wrapper and always requires a saving throw.
 
 ## GM launcher
 
@@ -162,7 +170,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.2.0`.
+2. Create and push a semantic version tag, for example `v0.3.0`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
