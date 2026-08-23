@@ -92,7 +92,7 @@
 
 .stat-shift-tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 8px;
   gap: 6px;
   border-bottom: 1px solid var(--stat-shift-line);
@@ -137,6 +137,10 @@
 .stat-shift-form {
   display: grid;
   gap: 14px;
+}
+
+.stat-shift-form [hidden] {
+  display: none !important;
 }
 
 .stat-shift-section-title {
@@ -299,6 +303,52 @@
 
 .stat-shift-outcomes .stat-shift-modifiers {
   grid-template-columns: repeat(3, 1fr);
+}
+
+.stat-shift-save-choice,
+.stat-shift-direct-effect,
+.stat-shift-save-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.stat-shift-save-choice {
+  padding: 11px 12px;
+  border: 1px solid #6d5b3b;
+  border-radius: 7px;
+  background: #2a241a;
+}
+
+.stat-shift-save-choice.locked {
+  border-color: #40556e;
+  background: #182638;
+}
+
+.stat-shift-save-choice small {
+  color: var(--stat-shift-muted);
+}
+
+.stat-shift-direct-effect {
+  padding: 13px;
+  border: 1px solid var(--stat-shift-line);
+  border-top: 3px solid var(--stat-shift-accent);
+  border-radius: 8px;
+  background: linear-gradient(rgb(209 154 66 / 8%), transparent 90px), var(--stat-shift-panel);
+}
+
+.stat-shift-direct-effect h3 {
+  margin: 0;
+  color: var(--stat-shift-ink);
+  font-size: 14px;
+}
+
+.stat-shift-direct-effect h3 i {
+  margin-right: 6px;
+  color: var(--stat-shift-accent-2);
+}
+
+.stat-shift-direct-effect .stat-shift-modifiers {
+  grid-template-columns: repeat(6, minmax(58px, 1fr));
 }
 
 .stat-shift-extra-editor {
@@ -804,6 +854,7 @@ body:has(#interface.theme-dark) :is(.stat-shift-save-prompt, .stat-shift-save-re
   }
 
   .stat-shift-modifiers,
+  .stat-shift-direct-effect .stat-shift-modifiers,
   .stat-shift-data-edit.six {
     grid-template-columns: repeat(3, 1fr);
   }
