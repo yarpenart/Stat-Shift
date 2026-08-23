@@ -14,6 +14,13 @@ import {
 import { registerSocket } from "./socket.mjs";
 import { getDustStats, setDustStats, transferDustStats } from "./stats.mjs";
 import { openHomebrewSave, openStatShift, renderLauncher } from "./ui.mjs";
+import {
+  applyAttackRollModes,
+  handleExtendedEffectCreated,
+  handleExtendedEffectDeleted,
+  handleExtendedEffectUpdated,
+  reconcileAllSpellSlotBonuses
+} from "./extended-effects.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -102,9 +109,14 @@ function registerRuntimeHooks() {
   Hooks.on("createActiveEffect", handleActiveEffectCreated);
   Hooks.on("updateActiveEffect", handleActiveEffectUpdated);
   Hooks.on("deleteActiveEffect", handleActiveEffectDeleted);
+  Hooks.on("createActiveEffect", handleExtendedEffectCreated);
+  Hooks.on("updateActiveEffect", handleExtendedEffectUpdated);
+  Hooks.on("deleteActiveEffect", handleExtendedEffectDeleted);
+  Hooks.on("dnd5e.preRollAttackV2", applyAttackRollModes);
 }
 
 async function initializeEffectLifecycle() {
   await checkExpiredEffects();
   await reconcileAllAquaVitaeSuspensions();
+  await reconcileAllSpellSlotBonuses();
 }

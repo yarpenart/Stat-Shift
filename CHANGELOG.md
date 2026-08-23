@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.0
+
+- Expanded Homebrew Save outcomes beyond ability scores with skill, tool,
+  saving-throw and attack modifiers.
+- Added advantage and disadvantage for individual or all skills, tools, saves
+  and attack categories.
+- Added sense-range, speed, AC, maximum-HP and level 1–9 spell-slot changes.
+- Success and failure now have separate descriptions and may create
+  description-only effects.
+- Every additional modifier supports an optional situational note stored in the
+  Active Effect description and displayed on its chat card.
+- Added native dnd5e 5.3.3 attack-roll handling and reversible spell-slot
+  maximum reconciliation for active Stat Shift effects.
+
+## 0.1.8
+
+- Automatic and player-entered saving-throw modifiers now accept dice formulas
+  such as `1d4`, `1d6 + 2`, and ordinary flat numbers.
+- Added formula validation before the modifier is passed to the native dnd5e
+  saving throw through `rolls[].parts`.
+
 ## 0.1.7
 
 - Replaced the unconfirmed GM-to-player saving-throw socket notification with

@@ -19,6 +19,14 @@ import {
   escapeHtml
 } from "./effects.mjs";
 import { sendSaveRequest } from "./socket.mjs";
+import { isValidRollModifier, normalizeRollModifier } from "./roll-formula.mjs";
+import {
+  extraEffectTargetOptions,
+  extraEffectTypeOptions,
+  extraEffectValueKind,
+  normalizeExtraEffects,
+  validateExtraEffects
+} from "./extended-effects.mjs";
 import {
   getDustStats,
   setDustStats,
@@ -201,13 +209,17 @@ export class StatShiftApp extends Application {
     const description = String(defaults.description ?? "");
     const saveAbility = ABILITIES.includes(defaults.saveAbility) ? defaults.saveAbility : "con";
     const dc = numberValue(defaults.dc, 15);
-    const rollBonus = numberValue(defaults.rollBonus, 0);
+    const rollBonus = normalizeRollModifier(defaults.rollBonus);
     const mode = ["add", "upgrade", "override", "downgrade"].includes(defaults.mode) ? defaults.mode : "add";
     const rollMode = ["publicroll", "gmroll", "blindroll", "selfroll"].includes(defaults.rollMode) ? defaults.rollMode : "publicroll";
     const durationValue = numberValue(defaults.durationValue, 1);
     const durationUnit = ["turns", "minutes", "hours", "days", "permanent"].includes(defaults.durationUnit) ? defaults.durationUnit : "hours";
     const successModifiers = defaults.successModifiers ?? {};
     const failureModifiers = defaults.failureModifiers ?? { con: -2 };
+    const successExtraEffects = normalizeExtraEffects(defaults.successExtraEffects);
+    const failureExtraEffects = normalizeExtraEffects(defaults.failureExtraEffects);
+    const successDescription = String(defaults.successDescription ?? description);
+    const failureDescription = String(defaults.failureDescription ?? description);
     const applySuccess = Boolean(defaults.applySuccess);
     const applyFailure = defaults.applyFailure === undefined ? true : Boolean(defaults.applyFailure);
     const successIcon = String(defaults.successIcon ?? "icons/magic/defensive/shield-barrier-glowing-triangle-green.webp");
@@ -227,7 +239,11 @@ export class StatShiftApp extends Application {
           ${abilityField("saveAbility", saveAbility)}
           <label><span>DC</span><input type="number" name="dc" value="${dc}" min="1"></label>
         </div>
-        <label><span>${tr("Automatic roll bonus", "Automatyczny bonus do rzutu")}</span><input type="number" name="rollBonus" value="${rollBonus}" step="1"></label>
+        <label>
+          <span>${tr("Automatic roll modifier", "Automatyczny modyfikator rzutu")}</span>
+          <input type="text" name="rollBonus" value="${escapeHtml(rollBonus)}" placeholder="0, 1d4, 1d6 + 2" spellcheck="false">
+          <small class="stat-shift-roll-formula-hint">${tr("Enter a number or dice formula, for example 3, 1d4, or 1d6 + 2.", "Wpisz liczbę albo formułę kości, np. 3, 1d4 lub 1d6 + 2.")}</small>
+        </label>
         <div class="stat-shift-grid two">
           <label><span>${tr("Effect base name", "Bazowa nazwa efektu")}</span><input type="text" name="effectName" value="${escapeHtml(effectName)}"></label>
           ${modeField(mode)}
@@ -239,14 +255,22 @@ export class StatShiftApp extends Application {
             <label class="stat-shift-toggle"><input type="checkbox" name="applySuccess"${applySuccess ? " checked" : ""}><span>${tr("Apply changes on success", "Nałóż zmiany po sukcesie")}</span></label>
             <label><span>${tr("Success icon", "Ikona sukcesu")}</span><input type="text" name="successIcon" value="${escapeHtml(successIcon)}"></label>
             ${modifiersEditor("success", successModifiers)}
+            ${extraEffectsEditor("success", successExtraEffects, resolveActor(actorId))}
+            <label><span>${tr("Success effect description", "Opis efektu sukcesu")}</span><textarea name="successDescription" rows="3">${escapeHtml(successDescription)}</textarea></label>
           </section>
           <section class="failure">
             <label class="stat-shift-toggle"><input type="checkbox" name="applyFailure"${applyFailure ? " checked" : ""}><span>${tr("Apply changes on failure", "Nałóż zmiany po porażce")}</span></label>
             <label><span>${tr("Failure icon", "Ikona porażki")}</span><input type="text" name="failureIcon" value="${escapeHtml(failureIcon)}"></label>
             ${modifiersEditor("failure", failureModifiers)}
+            ${extraEffectsEditor("failure", failureExtraEffects, resolveActor(actorId))}
+            <label><span>${tr("Failure effect description", "Opis efektu porażki")}</span><textarea name="failureDescription" rows="3">${escapeHtml(failureDescription)}</textarea></label>
           </section>
         </div>
-        <label><span>${tr("Description", "Opis")}</span><textarea name="description" rows="2">${escapeHtml(description)}</textarea></label>
+        <label>
+          <span>${tr("Shared fallback description", "Wspólny opis zapasowy")}</span>
+          <textarea name="description" rows="2">${escapeHtml(description)}</textarea>
+          <small>${tr("Used only when the selected outcome description is empty.", "Używany tylko wtedy, gdy opis wybranego wyniku jest pusty.")}</small>
+        </label>
         <div class="stat-shift-actions">
           <button type="button" data-action="request-save" class="stat-shift-primary">
             <i class="fa-solid fa-shield-halved"></i>${tr("Request Saving Throw", "Poproś o rzut obronny")}
@@ -397,6 +421,12 @@ export class StatShiftApp extends Application {
       );
     });
     html.find("[data-dust-profile]").on("change", event => updateDustProfile(event.currentTarget.closest("form")));
+    html.find("form[data-form='save'] select[name='actorId']").on("change", event => {
+      refreshExtraEffectTargets(event.currentTarget.closest("form"), resolveActor(event.currentTarget.value));
+    });
+    html.on("click", "[data-add-extra-effect]", event => addExtraEffectRow(event.currentTarget));
+    html.on("click", "[data-remove-extra-effect]", event => event.currentTarget.closest("[data-extra-effect-row]")?.remove());
+    html.on("change", "[data-extra-effect-type]", event => updateExtraEffectRow(event.currentTarget.closest("[data-extra-effect-row]")));
     html.find("[data-dust-randomize]").on("click", event => {
       randomizeDustProfile(
         event.currentTarget.closest("form"),
@@ -462,6 +492,13 @@ export class StatShiftApp extends Application {
   async requestSave(form) {
     const data = formObject(form);
     const actor = requiredActor(data.actorId);
+    const rollBonus = normalizeRollModifier(data.rollBonus);
+    if (!isValidRollModifier(rollBonus)) throw new Error(tr(
+      "The automatic roll modifier is not a valid dice formula.",
+      "Automatyczny modyfikator rzutu nie jest poprawną formułą kości."
+    ));
+    const successExtraEffects = validateExtraEffects(readExtraEffects(data, "success"), actor);
+    const failureExtraEffects = validateExtraEffects(readExtraEffects(data, "failure"), actor);
     await sendSaveRequest({
       id: randomId(),
       kind: "homebrewSave",
@@ -470,7 +507,7 @@ export class StatShiftApp extends Application {
       effectName: data.effectName,
       saveAbility: data.saveAbility,
       dc: numberValue(data.dc, 15),
-      rollBonus: numberValue(data.rollBonus, 0),
+      rollBonus,
       rollMode: data.rollMode,
       mode: data.mode,
       durationValue: numberValue(data.durationValue, 1),
@@ -479,6 +516,10 @@ export class StatShiftApp extends Application {
       applyFailure: Boolean(data.applyFailure),
       successModifiers: readModifiers(data, "success"),
       failureModifiers: readModifiers(data, "failure"),
+      successExtraEffects,
+      failureExtraEffects,
+      successDescription: data.successDescription,
+      failureDescription: data.failureDescription,
       successIcon: data.successIcon,
       failureIcon: data.failureIcon,
       description: data.description
@@ -657,6 +698,115 @@ function modifiersEditor(prefix, values) {
   </div>`;
 }
 
+function extraEffectsEditor(prefix, values = [], actor = null) {
+  const effects = normalizeExtraEffects(values);
+  return `<section class="stat-shift-extra-editor" data-extra-effect-editor data-prefix="${prefix}" data-next-index="${effects.length}">
+    <header>
+      <div>
+        <h4>${tr("Additional effects", "Dodatkowe efekty")}</h4>
+        <small>${tr(
+          "Modifiers are automated. The optional situation field is stored as a visible note and does not interpret the condition automatically.",
+          "Modyfikatory są automatyczne. Opcjonalne pole sytuacji jest zapisywane jako widoczna notatka i nie interpretuje warunku automatycznie."
+        )}</small>
+      </div>
+      <button type="button" data-add-extra-effect><i class="fa-solid fa-plus"></i>${tr("Add effect", "Dodaj efekt")}</button>
+    </header>
+    <div class="stat-shift-extra-list" data-extra-effect-list>
+      ${effects.map((effect, index) => extraEffectRow(prefix, index, effect, actor)).join("")}
+    </div>
+  </section>`;
+}
+
+function extraEffectRow(prefix, index, effect = {}, actor = null) {
+  const type = extraEffectTypeOptions().some(([id]) => id === effect.type) ? effect.type : "skillBonus";
+  const targets = extraEffectTargetOptions(type, actor);
+  const target = targets.some(([id]) => id === effect.target) ? effect.target : targets[0]?.[0] ?? "all";
+  const value = String(effect.value ?? (extraEffectValueKind(type) === "mode" ? "advantage" : "0"));
+  return `<div class="stat-shift-extra-row" data-extra-effect-row data-prefix="${prefix}" data-index="${index}">
+    <label>
+      <span>${tr("Effect type", "Rodzaj efektu")}</span>
+      <select name="${prefix}.extra.${index}.type" data-extra-effect-type>
+        ${extraEffectTypeOptions().map(([id, label]) => `<option value="${id}"${id === type ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+      </select>
+    </label>
+    <div data-extra-effect-target>${extraEffectTargetField(prefix, index, type, target, actor)}</div>
+    <div data-extra-effect-value>${extraEffectValueField(prefix, index, type, value)}</div>
+    <label class="stat-shift-extra-condition">
+      <span>${tr("Situation / note (optional)", "Sytuacja / notatka (opcjonalna)")}</span>
+      <input type="text" name="${prefix}.extra.${index}.condition" value="${escapeHtml(effect.condition ?? "")}" placeholder="${tr("e.g. only against curses", "np. tylko przeciw klątwom")}">
+    </label>
+    <button type="button" class="stat-shift-extra-remove" data-remove-extra-effect title="${tr("Remove effect", "Usuń efekt")}" aria-label="${tr("Remove effect", "Usuń efekt")}"><i class="fa-solid fa-trash"></i></button>
+  </div>`;
+}
+
+function extraEffectTargetField(prefix, index, type, selected, actor = null) {
+  return `<label>
+    <span>${tr("Target", "Cel")}</span>
+    <select name="${prefix}.extra.${index}.target">
+      ${extraEffectTargetOptions(type, actor).map(([id, label]) => `<option value="${id}"${id === selected ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+    </select>
+  </label>`;
+}
+
+function extraEffectValueField(prefix, index, type, value) {
+  const kind = extraEffectValueKind(type);
+  if (kind === "mode") {
+    return `<label>
+      <span>${tr("Roll mode", "Tryb rzutu")}</span>
+      <select name="${prefix}.extra.${index}.value">
+        <option value="advantage"${value === "advantage" ? " selected" : ""}>${tr("Advantage", "Przewaga")}</option>
+        <option value="disadvantage"${value === "disadvantage" ? " selected" : ""}>${tr("Disadvantage", "Utrudnienie")}</option>
+      </select>
+    </label>`;
+  }
+  const label = kind === "formula" ? tr("Modifier / formula", "Modyfikator / formuła") : tr("Change", "Zmiana");
+  const input = kind === "formula"
+    ? `<input type="text" name="${prefix}.extra.${index}.value" value="${escapeHtml(value)}" placeholder="1, -2, 1d4" spellcheck="false">`
+    : `<input type="number" name="${prefix}.extra.${index}.value" value="${escapeHtml(value)}" step="1">`;
+  return `<label><span>${label}</span>${input}</label>`;
+}
+
+function addExtraEffectRow(button) {
+  const editor = button.closest("[data-extra-effect-editor]");
+  const list = editor?.querySelector("[data-extra-effect-list]");
+  if (!editor || !list) return;
+  const index = Number(editor.dataset.nextIndex ?? 0);
+  const actorId = editor.closest("form")?.elements?.actorId?.value;
+  list.insertAdjacentHTML("beforeend", extraEffectRow(editor.dataset.prefix, index, {}, resolveActor(actorId)));
+  editor.dataset.nextIndex = String(index + 1);
+}
+
+function updateExtraEffectRow(row) {
+  if (!row) return;
+  const type = row.querySelector("[data-extra-effect-type]")?.value ?? "skillBonus";
+  const prefix = row.dataset.prefix;
+  const index = Number(row.dataset.index ?? 0);
+  const actorId = row.closest("form")?.elements?.actorId?.value;
+  row.querySelector("[data-extra-effect-target]").innerHTML = extraEffectTargetField(prefix, index, type, null, resolveActor(actorId));
+  row.querySelector("[data-extra-effect-value]").innerHTML = extraEffectValueField(
+    prefix,
+    index,
+    type,
+    extraEffectValueKind(type) === "mode" ? "advantage" : "0"
+  );
+}
+
+function refreshExtraEffectTargets(form, actor) {
+  for (const row of form?.querySelectorAll?.("[data-extra-effect-row]") ?? []) {
+    const type = row.querySelector("[data-extra-effect-type]")?.value ?? "skillBonus";
+    const current = row.querySelector("[data-extra-effect-target] select")?.value;
+    const prefix = row.dataset.prefix;
+    const index = Number(row.dataset.index ?? 0);
+    row.querySelector("[data-extra-effect-target]").innerHTML = extraEffectTargetField(
+      prefix,
+      index,
+      type,
+      current,
+      actor
+    );
+  }
+}
+
 function durationFields(value, selectedUnit) {
   return `<div class="stat-shift-grid two">
     <label><span>${tr("Duration value", "Wartość czasu")}</span><input type="number" name="durationValue" value="${value}" min="0" step="1"></label>
@@ -695,6 +845,21 @@ function numberValue(value, fallback = 0) {
 
 function readModifiers(data, prefix) {
   return Object.fromEntries(ABILITIES.map(ability => [ability, numberValue(data[`${prefix}.${ability}`])]));
+}
+
+function readExtraEffects(data, prefix) {
+  const pattern = new RegExp(`^${prefix}\\.extra\\.(\\d+)\\.type$`);
+  const indices = Object.keys(data)
+    .map(key => key.match(pattern)?.[1])
+    .filter(index => index !== undefined)
+    .map(Number)
+    .sort((a, b) => a - b);
+  return indices.map(index => ({
+    type: data[`${prefix}.extra.${index}.type`],
+    target: data[`${prefix}.extra.${index}.target`],
+    value: data[`${prefix}.extra.${index}.value`],
+    condition: data[`${prefix}.extra.${index}.condition`]
+  }));
 }
 
 function updateDustProfile(form) {
