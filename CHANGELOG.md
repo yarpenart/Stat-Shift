@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- Merged the former Homebrew and Homebrew Save tabs into one Homebrew editor.
+- Added **Does not require a saving throw** so the full expanded effect set can
+  be applied directly to an actor without opening a save prompt.
+- Direct Homebrew effects now support skills, tools, saves, attacks,
+  advantage/disadvantage, senses, speed, AC, maximum HP, spell slots and
+  optional situational notes, in addition to ability modifiers and text-only
+  effects.
+- Added `game.statShift.openHomebrew(...)` for integrations, including an
+  option to require and lock saving-throw mode.
+- Kept `game.statShift.openHomebrewSave(...)` as a backward-compatible wrapper
+  that always requires a save.
+
 ## 0.2.1
 
 - Added theme-aware text contrast to the dark Stat Shift editor, saving-throw
