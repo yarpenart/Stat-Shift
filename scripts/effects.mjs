@@ -225,22 +225,36 @@ export async function applyPreset(actor, data) {
 }
 
 export async function applyHomebrew(actor, data) {
-  const changes = modifiersToChanges(data.modifiers, data.mode);
-  if (!changes.length) throw new Error(tr("At least one change is required.", "Wymagana jest co najmniej jedna zmiana."));
+  const extraEffects = normalizeExtraEffects(data.extraEffects);
+  const changes = [
+    ...modifiersToChanges(data.modifiers, data.mode),
+    ...extraEffectsToChanges(extraEffects, actor)
+  ];
+  const description = String(data.description ?? "");
+  if (!changes.length && !extraEffects.length && !description.trim()) throw new Error(tr(
+    "At least one change or a description is required.",
+    "Wymagana jest co najmniej jedna zmiana albo opis."
+  ));
   const effect = await createStatEffect(actor, {
     name: data.effectName,
     img: data.icon,
     changes,
     durationValue: data.durationValue,
     durationUnit: data.durationUnit,
-    description: data.description,
-    kind: "homebrew"
+    description: buildExtendedDescription(description, extraEffects, escapeHtml),
+    kind: "homebrew",
+    extraFlags: { extendedEffects: extraEffects }
   });
+  const abilityChanges = Object.entries(data.modifiers ?? {}).map(([ability, value]) => ({
+    ability,
+    value,
+    mode: data.mode
+  }));
   await postEffectCard(actor, {
     title: data.effectName,
     image: effect.img,
     outcome: tr("Homebrew effect applied", "Nałożono efekt homebrew"),
-    changes: changesFromEffect(changes),
+    changes: [...abilityChanges, ...extraEffectDisplayEntries(extraEffects, actor)],
     durationValue: data.durationValue,
     durationUnit: data.durationUnit,
     rollMode: data.rollMode
@@ -604,14 +618,6 @@ function runEffectLifecycle(callback) {
   void Promise.resolve()
     .then(callback)
     .catch(error => console.error(`${MODULE_ID} | Aqua Vitae lifecycle failed.`, error));
-}
-
-function changesFromEffect(changes) {
-  return changes.map(change => ({
-    ability: change.key.split(".")[2],
-    value: numeric(change.value),
-    mode: Object.entries(CONST.ACTIVE_EFFECT_MODES).find(([, value]) => value === change.mode)?.[0]?.toLowerCase() ?? "add"
-  }));
 }
 
 function modifierLabel(change) {
