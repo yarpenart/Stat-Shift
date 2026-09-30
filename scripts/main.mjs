@@ -84,7 +84,8 @@ function registerSettings() {
     scope: "client",
     config: true,
     type: Boolean,
-    default: false
+    default: false,
+    onChange: renderLauncher
   });
   game.settings.register(MODULE_ID, "launcherX", {
     scope: "client",
