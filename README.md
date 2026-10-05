@@ -170,7 +170,7 @@ https://github.com/yarpenart/stat-shift/releases/latest/download/module.json
 ## Creating a release
 
 1. Push the desired changes to `main`.
-2. Create and push a semantic version tag, for example `v0.3.0`.
+2. Create and push a semantic version tag, for example `v0.3.1`.
 3. GitHub Actions builds `stat-shift.zip`, updates the release manifest, and
    publishes both files to the matching GitHub Release.
 
