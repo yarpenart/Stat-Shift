@@ -32,6 +32,7 @@ import {
   setDustStats,
   transferDustStats
 } from "./stats.mjs";
+import { clampFloatingPosition } from "./launcher-utils.mjs";
 
 export class StatShiftApp extends Application {
   constructor(options = {}) {
@@ -940,6 +941,7 @@ function historyRow(entry) {
 }
 
 let appInstance;
+let launcherAbortController = null;
 
 export function openStatShift() {
   if (!game.user.isGM) {
@@ -983,42 +985,115 @@ export function openHomebrewSave(options = {}) {
 }
 
 export function renderLauncher() {
+  launcherAbortController?.abort();
+  launcherAbortController = null;
   document.getElementById("stat-shift-launcher")?.remove();
   if (!game.user.isGM || !game.settings.get(MODULE_ID, "showLauncher")) return;
-  const button = document.createElement("button");
-  button.id = "stat-shift-launcher";
-  button.type = "button";
-  button.title = tr("Open Stat Shift", "Otwórz Stat Shift");
-  button.innerHTML = `<i class="fa-solid fa-arrows-left-right-to-line"></i><span>Stat Shift</span>`;
-  button.style.left = `${game.settings.get(MODULE_ID, "launcherX")}px`;
-  button.style.top = `${game.settings.get(MODULE_ID, "launcherY")}px`;
-  button.addEventListener("click", event => {
-    if (!button.dataset.dragged) openStatShift();
-    delete button.dataset.dragged;
-  });
-  button.addEventListener("pointerdown", event => startLauncherDrag(event, button));
-  document.body.append(button);
+  const controller = new AbortController();
+  launcherAbortController = controller;
+  const { signal } = controller;
+  let state = {
+    left: Number(game.settings.get(MODULE_ID, "launcherX")) || 120,
+    top: Number(game.settings.get(MODULE_ID, "launcherY")) || 180,
+    locked: Boolean(game.settings.get(MODULE_ID, "lockLauncher"))
+  };
+  const launcher = document.createElement("nav");
+  launcher.id = "stat-shift-launcher";
+  launcher.setAttribute("aria-label", tr("Stat Shift quick access", "Szybki dostęp do Stat Shift"));
+  launcher.innerHTML = `
+    <button type="button" class="stat-shift-launcher__open" data-stat-shift-open
+            title="${tr("Open Stat Shift", "Otwórz Stat Shift")}">
+      <i class="fa-solid fa-arrows-left-right-to-line"></i><span>Stat Shift</span>
+    </button>
+    <div class="stat-shift-launcher__controls">
+      <button type="button" class="stat-shift-launcher__control stat-shift-launcher__drag"
+              data-stat-shift-drag title="${tr("Move the shortcut", "Przesuń skrót")}">
+        <i class="fa-solid fa-grip-lines"></i>
+      </button>
+      <button type="button" class="stat-shift-launcher__control" data-stat-shift-lock>
+        <i class="fa-solid fa-lock-open"></i>
+      </button>
+    </div>`;
+  document.body.append(launcher);
+  state = positionLauncher(launcher, state);
+  updateLauncherLock(launcher, state);
+
+  launcher.querySelector("[data-stat-shift-open]").addEventListener("click", openStatShift, { signal });
+  launcher.querySelector("[data-stat-shift-lock]").addEventListener("click", async () => {
+    await game.settings.set(MODULE_ID, "lockLauncher", !state.locked);
+    renderLauncher();
+  }, { signal });
+  launcher.querySelector("[data-stat-shift-drag]").addEventListener(
+    "pointerdown",
+    event => startLauncherDrag(event, launcher, state, signal),
+    { signal }
+  );
+  window.addEventListener("resize", () => {
+    state = positionLauncher(launcher, state);
+  }, { signal });
 }
 
-function startLauncherDrag(event, button) {
-  if (game.settings.get(MODULE_ID, "lockLauncher") || event.button !== 0) return;
+function positionLauncher(launcher, state) {
+  const rect = launcher.getBoundingClientRect();
+  const positioned = clampFloatingPosition(
+    state,
+    { width: window.innerWidth, height: window.innerHeight },
+    { width: rect.width, height: rect.height }
+  );
+  launcher.style.left = `${positioned.left}px`;
+  launcher.style.top = `${positioned.top}px`;
+  return positioned;
+}
+
+function updateLauncherLock(launcher, state) {
+  const dragButton = launcher.querySelector("[data-stat-shift-drag]");
+  const lockButton = launcher.querySelector("[data-stat-shift-lock]");
+  const lockIcon = lockButton?.querySelector("i");
+  const label = state.locked
+    ? tr("Unlock the shortcut position", "Odblokuj pozycję skrótu")
+    : tr("Lock the shortcut position", "Zablokuj pozycję skrótu");
+  launcher.dataset.locked = String(state.locked);
+  if (dragButton) dragButton.disabled = state.locked;
+  if (lockButton) {
+    lockButton.title = label;
+    lockButton.setAttribute("aria-label", label);
+    lockButton.setAttribute("aria-pressed", String(state.locked));
+  }
+  lockIcon?.classList.toggle("fa-lock", state.locked);
+  lockIcon?.classList.toggle("fa-lock-open", !state.locked);
+}
+
+function startLauncherDrag(event, launcher, initialState, signal) {
+  if (initialState.locked || event.button !== 0) return;
   event.preventDefault();
+  const pointerId = event.pointerId;
   const startX = event.clientX;
   const startY = event.clientY;
-  const rect = button.getBoundingClientRect();
+  const rect = launcher.getBoundingClientRect();
+  const handle = event.currentTarget;
+  launcher.classList.add("stat-shift-launcher--dragging");
+  handle.setPointerCapture?.(pointerId);
   const move = moveEvent => {
-    const left = Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + moveEvent.clientX - startX));
-    const top = Math.max(0, Math.min(window.innerHeight - rect.height, rect.top + moveEvent.clientY - startY));
-    button.style.left = `${left}px`;
-    button.style.top = `${top}px`;
-    if (Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY) > 4) button.dataset.dragged = "true";
+    if (moveEvent.pointerId !== pointerId) return;
+    const positioned = positionLauncher(launcher, {
+      ...initialState,
+      left: rect.left + moveEvent.clientX - startX,
+      top: rect.top + moveEvent.clientY - startY
+    });
+    initialState.left = positioned.left;
+    initialState.top = positioned.top;
   };
-  const up = async () => {
+  const finish = async finishEvent => {
+    if (finishEvent.pointerId !== pointerId) return;
     window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    await game.settings.set(MODULE_ID, "launcherX", Math.round(parseFloat(button.style.left)));
-    await game.settings.set(MODULE_ID, "launcherY", Math.round(parseFloat(button.style.top)));
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", finish);
+    launcher.classList.remove("stat-shift-launcher--dragging");
+    handle.releasePointerCapture?.(pointerId);
+    await game.settings.set(MODULE_ID, "launcherX", Math.round(initialState.left));
+    await game.settings.set(MODULE_ID, "launcherY", Math.round(initialState.top));
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up, { once: true });
+  window.addEventListener("pointermove", move, { signal });
+  window.addEventListener("pointerup", finish, { signal });
+  window.addEventListener("pointercancel", finish, { signal });
 }
