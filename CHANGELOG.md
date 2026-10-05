@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Added an inline lock button and dedicated drag handle to the floating GM shortcut.
+- The shortcut position is clamped to the visible viewport after rendering and window resizing.
+- Verified the manifest, JavaScript syntax and test suite for Foundry VTT 14 Build 365.
+
 ## 0.3.0
 
 - Merged the former Homebrew and Homebrew Save tabs into one Homebrew editor.
